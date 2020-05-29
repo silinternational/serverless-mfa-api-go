@@ -1,0 +1,7 @@
+.env
+*.env
+*.aes
+.cert/
+.idea/
+bin/
+tmp/

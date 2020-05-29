@@ -1,0 +1,48 @@
+version: "3.7"
+
+services:
+  proxy:
+    image: silintl/traefik-https-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./.cert/:/cert/
+    env_file:
+      - ./.env
+
+  dynamo:
+    image: amazon/dynamodb-local
+    ports:
+      - "8000:8000"
+    environment:
+      AWS_ACCESS_KEY_ID: abc123
+      AWS_SECRET_ACCESS_KEY: abc123
+      AWS_DEFAULT_REGION: us-east-1
+    command: "-jar DynamoDBLocal.jar -sharedDb"
+
+  app:
+    build: .
+    volumes:
+      - ./:/mfa
+    ports:
+      - 8080
+    environment:
+      AWS_ENDPOINT: dynamo:8000
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: abc123
+      AWS_SECRET_ACCESS_KEY: abc123
+      AWS_DISABLE_SSL: "true"
+      API_KEY_TABLE: ApiKey
+      WEBAUTHN_TABLE: WebAuthn
+    depends_on:
+      - dynamo
+    working_dir: /mfa/demo
+    command: go run .
+
+  ui:
+    image: httpd:alpine
+    volumes:
+      - ./demo/ui:/usr/local/apache2/htdocs
+    ports:
+      - 80

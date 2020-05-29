@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Serverless MFA API - dev/testing site</title>
+    <style type="text/css">
+        button {
+            margin: 0.5em 0;
+        }
+        html { font-size: 16px; }
+        input {
+            display: block;
+            width: 50em;
+        }
+        label {
+            display: block;
+            margin: 0.5em 0;
+        }
+    </style>
+    <script src="client.js"></script>
+    <script src="webauthn-client.js"></script>
+    <script src="psl.min.js"></script>
+</head>
+<body>
+<h1>Serverless MFA API - dev/testing site</h1>
+
+<h2>WebAuthn Registration</h2>
+<form id="webauthn-registration-form">
+    <label>
+        WebAuthn API Base URL:
+        <input name="apiBaseUrl" />
+    </label>
+    <label>
+        API Key:
+        <input name="apiKey" />
+    </label>
+
+    <label>
+        API Secret:
+        <input name="apiSecret" />
+    </label>
+
+    <label>
+        User ID (UUIDv4):
+        <input name="userId" value="5c3354f4-a4fe-4612-89e9-93046e85351c" />
+    </label>
+
+    <label>
+        Username:
+        <input name="username" value="john_smith" />
+    </label>
+
+    <label>
+        Display name:
+        <input name="userDisplayName" value="John Smith" />
+    </label>
+
+    <button>Register</button>
+</form>
+
+<h2>WebAuthn Authentication</h2>
+<form id="webauthn-authentication-form">
+    <label>
+        WebAuthn API Base URL:
+        <input name="apiBaseUrl" />
+    </label>
+    <label>
+        API Key:
+        <input name="apiKey" />
+    </label>
+
+    <label>
+        API Secret:
+        <input name="apiSecret" />
+    </label>
+
+    <label>
+        User ID (UUIDv4):
+        <input name="userId" />
+    </label>
+
+    <button>Authenticate</button>
+</form>
+
+<script>
+    restoreInputValues();
+    addSubmitListener("webauthn-registration-form", onWebauthnRegistrationFormSubmit);
+    addSubmitListener("webauthn-authentication-form", onWebauthnAuthenticationFormSubmit);
+</script>
+</body>
+</html>

@@ -43,8 +43,8 @@ const makeRequestHeaders = form => ({
         'x-mfa-RPOrigin': "https://"+window.psl.parse(window.location.hostname).subdomain + "." + window.psl.parse(window.location.hostname).domain,
         'x-mfa-RPIcon': "",
         'x-mfa-UserUUID': form.userId.value,
-        'x-mfa-Username': form.username.value,
-        'x-mfa-UserDisplayName': form.userDisplayName.value,
+        'x-mfa-Username': form.username.value ?? '',
+        'x-mfa-UserDisplayName': form.userDisplayName.value ?? '',
         'x-mfa-UserIcon': ""
 });
 
@@ -68,6 +68,17 @@ const sendWebauthnRegistrationToServer = async (apiBaseUrl, apiKey, apiSecret, r
         () => alert('Successfully registered WebAuthn key')
     );
 };
+const sendWebauthnAuthenticationToServer = async (apiBaseUrl, apiKey, apiSecret, authenticationCredential, form) => {
+    fetch(apiBaseUrl, {
+        method: 'PUT',
+        headers: makeRequestHeaders(form),
+        body: JSON.stringify(authenticationCredential)
+    }).then(
+        rejectIfNotOk
+    ).then(
+        () => alert('Successfully authenticated WebAuthn key')
+    );
+};
 
 const onWebauthnAuthenticationFormSubmit = async form => {
     const apiBaseUrl = form.apiBaseUrl.value;
@@ -79,6 +90,7 @@ const onWebauthnAuthenticationFormSubmit = async form => {
 const onWebauthnRegistrationFormSubmit = async form => {
     const apiBaseUrl = form.apiBaseUrl.value;
     const registrationRequest = makeRegistrationRequestFrom(form);
+    console.log(registrationRequest)
     const apiKey = form.apiKey.value;
     const apiSecret = form.apiSecret.value;
     createWebauthnRegistration(apiBaseUrl, apiKey, apiSecret, registrationRequest, form)
@@ -100,18 +112,16 @@ const createWebauthnAuthentication = (apiBaseUrl, apiKey, apiSecret, form) => {
             console.log('loginChallenge:', loginChallenge); // TEMP
             loginChallenge.userVerification = 'discouraged';
             console.log('Modified loginChallenge:', loginChallenge); // TEMP
-            return window.solveLoginChallenge(loginChallenge);
+            return window.solveLoginChallenge(loginChallenge.publicKey);
         }
     ).then(
-        credentialsJSON => {
-            console.log('credentialsJSON:', credentialsJSON); // TEMP
-        }
-        // registrationCredential => sendWebauthnAuthenticationToServer(
-        //   apiKey,
-        //   apiSecret,
-        //   registrationRequest.user.id,
-        //   registrationCredential
-        // )
+        authenticationCredential => sendWebauthnAuthenticationToServer(
+          apiBaseUrl,
+          apiKey,
+          apiSecret,
+          authenticationCredential,
+          form
+        )
     );
 };
 

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -211,22 +212,33 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return &webauthn.Credential{}, fmt.Errorf("failed to read request bodyt: %w", err)
+		log.Printf("failed to read request bodyt: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to read request bodyt: %s", err)
 	}
 
 	br, err := fixEncoding(body)
 	if err != nil {
-		return &webauthn.Credential{}, fmt.Errorf("failed to fix encoding in finish login: %w", err)
+		log.Printf("failed to fix encoding in finish login: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to fix encoding in finish login: %s", err)
 	}
 
 	parsedResponse, err := protocol.ParseCredentialRequestResponseBody(br)
 	if err != nil {
-		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %w", err)
+		log.Printf("failed to parse credential request response body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
+	}
+
+	// there is an issue with URLEncodeBase64.UnmarshalJSON and null values
+	// see https://github.com/duo-labs/webauthn/issues/69
+	// null byte sequence is []byte{158,233,101}
+	if isNullByteSlice(parsedResponse.Response.UserHandle) {
+		parsedResponse.Response.UserHandle = nil
 	}
 
 	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
-		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %w", err)
+		log.Printf("failed to validate login: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %s", err)
 	}
 
 	return credential, nil
@@ -255,4 +267,15 @@ func (u *DynamoUser) WebAuthnIcon() string {
 // Credentials owned by the user
 func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 	return u.Credentials
+}
+
+// isNullByteSlice works around a bug in json unmarshalling for a urlencoded base64 string
+func isNullByteSlice(slice []byte) bool {
+	if len(slice) != 3 {
+		return false
+	}
+	if slice[0] == 158 && slice[1] == 233 && slice[2] == 101 {
+		return true
+	}
+	return false
 }

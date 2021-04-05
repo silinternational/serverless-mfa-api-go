@@ -47,3 +47,7 @@ showwebauth:
       --table-name WebAuthn \
       --endpoint-url http://localhost:8000 \
       --region localhost
+
+clean:
+	docker-compose kill
+	docker-compose rm -f

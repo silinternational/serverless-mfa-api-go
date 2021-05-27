@@ -2,6 +2,7 @@ package serverless_mfa_api_go
 
 import (
 	"bytes"
+	"encoding/base64"
 	"log"
 	"testing"
 )
@@ -145,4 +146,20 @@ func TestDecrypt(t *testing.T) {
 	}
 
 	log.Printf("decrypted: %s", string(plain))
+}
+
+func TestEncrypt(t *testing.T) {
+	plaintext := []byte(``)
+	apiKey := ApiKey{
+		Key:    "EC7C2E16-5028-432F-8AF2-A79A64CF3BC1",
+		Secret: "1ED18444-7238-410B-A536-D6C15A3C",
+	}
+
+	cipher, err := apiKey.Encrypt(plaintext)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	log.Printf("encrypted: %s", base64.StdEncoding.EncodeToString(cipher))
 }

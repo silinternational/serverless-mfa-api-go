@@ -42,7 +42,10 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 		ApiKey:         apiKey,
 		APIKeyValue:    apiKey.Key,
 	}
-	_ = u.Load()
+	err := u.Load()
+	if err != nil {
+		log.Printf("failed to load user: %s\n", err)
+	}
 	return u
 }
 

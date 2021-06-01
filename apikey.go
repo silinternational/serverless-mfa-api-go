@@ -27,7 +27,7 @@ func (k *ApiKey) Load() error {
 	return k.Store.Load(envConfig.ApiKeyTableName, ApiKeyTablePK, k.Key, k)
 }
 
-// Generate bcrypt hash from Secret and store in HashedSecret
+// Hash - Generate bcrypt hash from Secret and store in HashedSecret
 func (k *ApiKey) Hash() error {
 	if k.Secret == "" {
 		return errors.New("empty secret cannot be hashed")

@@ -1,16 +1,18 @@
 demo: proxy ui app dbinit
 
 proxy:
-	docker compose up -d proxy
+	docker-compose up -d proxy
 
 ui:
-	docker compose up -d ui
+	docker-compose up -d ui
 
 app:
-	docker compose up -d app
+	docker-compose kill app
+	docker-compose rm -f app
+	docker-compose up -d app
 
 db:
-	docker compose up -d dynamo
+	docker-compose up -d dynamo
 
 dbinit: db wait createwebauthntable createapikeytable
 
@@ -49,5 +51,5 @@ showwebauth:
       --region localhost
 
 clean:
-	docker compose kill
-	docker compose rm -f
+	docker-compose kill
+	docker-compose rm -f

@@ -1,4 +1,5 @@
 demo: proxy ui app dbinit
+	./local_data.sh
 
 proxy:
 	docker-compose up -d proxy

@@ -110,7 +110,6 @@ const createWebauthnAuthentication = (apiBaseUrl, apiKey, apiSecret, form) => {
     ).then(
         loginChallenge => {
             console.log('loginChallenge:', loginChallenge); // TEMP
-            loginChallenge.userVerification = 'discouraged';
             console.log('Modified loginChallenge:', loginChallenge); // TEMP
             return window.solveLoginChallenge(loginChallenge.publicKey);
         }

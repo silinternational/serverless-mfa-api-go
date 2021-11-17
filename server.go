@@ -153,12 +153,14 @@ func BeginLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
 		JSONResponse(w, err, http.StatusBadRequest)
+		log.Printf("error getting user from context: %s\n", err)
 		return
 	}
 
 	options, err := user.BeginLogin()
 	if err != nil {
 		JSONResponse(w, err, http.StatusBadRequest)
+		log.Printf("error beginning user login: %s\n", err)
 		return
 	}
 
@@ -169,12 +171,14 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
 		JSONResponse(w, err, http.StatusBadRequest)
+		log.Printf("error getting user from context: %s\n", err)
 		return
 	}
 
 	credential, err := user.FinishLogin(r)
 	if err != nil {
 		JSONResponse(w, err, http.StatusBadRequest)
+		log.Printf("error finishing user login	: %s\n", err)
 		return
 	}
 

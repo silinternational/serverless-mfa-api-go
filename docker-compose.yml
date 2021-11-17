@@ -37,8 +37,7 @@ services:
       WEBAUTHN_TABLE: WebAuthn
     depends_on:
       - dynamo
-    working_dir: /mfa/demo
-    command: go run .
+    working_dir: /mfa
 
   ui:
     image: httpd:alpine

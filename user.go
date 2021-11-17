@@ -16,19 +16,29 @@ import (
 const WebAuthnTablePK = "uuid"
 
 type DynamoUser struct {
-	Store                *Storage              `json:"-"`
+	// Shared fields between U2F and WebAuthn
+	ID          string   `json:"uuid"`
+	APIKeyValue string   `json:"apiKey"`
+	ApiKey      ApiKey   `json:"-"`
+	Store       *Storage `json:"-"`
+
+	// U2F fields
+	AppId              string `json:"-"`
+	EncryptedAppId     string `json:"encryptedAppId,omitempty"`
+	KeyHandle          string `json:"-"`
+	EncryptedKeyHandle string `json:"encryptedKeyHandle,omitempty"`
+	PublicKey          string `json:"-"`
+	EncryptedPublicKey string `json:"encryptedPublicKey,omitempty"`
+
+	// WebAuthn fields
 	SessionData          webauthn.SessionData  `json:"-"`
 	EncryptedSessionData []byte                `json:"EncryptedSessionData,omitempty"`
 	Credentials          []webauthn.Credential `json:"-"`
 	EncryptedCredentials []byte                `json:"EncryptedCredentials,omitempty"`
 	WebAuthnClient       *webauthn.WebAuthn    `json:"-"`
-	ApiKey               ApiKey                `json:"-"`
-
-	ID          string `json:"uuid"`
-	APIKeyValue string `json:"apiKey"`
-	Name        string `json:"-"`
-	DisplayName string `json:"-"`
-	Icon        string `json:"-"`
+	Name                 string                `json:"-"`
+	DisplayName          string                `json:"-"`
+	Icon                 string                `json:"-"`
 }
 
 func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) DynamoUser {
@@ -63,6 +73,7 @@ func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
 
 	js, err := json.Marshal(sessionData)
 	if err != nil {
+		fmt.Printf("error marshaling session data to json. Session data: %+v\n Error: %s\n", sessionData, err)
 		return err
 	}
 
@@ -199,15 +210,27 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) error {
 }
 
 func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
-	options, sessionData, err := u.WebAuthnClient.BeginLogin(u)
+	extensions := protocol.AuthenticationExtensions{}
+	if u.EncryptedAppId != "" {
+		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
+		if err != nil {
+			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
+		}
+		extensions["appid"] = string(appid)
+	}
+
+	options, sessionData, err := u.WebAuthnClient.BeginLogin(u, webauthn.WithAssertionExtensions(extensions), webauthn.WithUserVerification(protocol.VerificationDiscouraged))
 	if err != nil {
 		return &protocol.CredentialAssertion{}, err
 	}
 
 	err = u.saveSessionData(*sessionData)
 	if err != nil {
-		return &protocol.CredentialAssertion{}, err
+		fmt.Printf("error saving session data: %s\n", err)
+		return nil, err
 	}
+
+	//options.Response.RelyingPartyID = ""
 
 	return options, nil
 }
@@ -267,9 +290,39 @@ func (u *DynamoUser) WebAuthnIcon() string {
 	return u.Icon
 }
 
-// Credentials owned by the user
+// WebAuthnCredentials returns an array of credentials plus a U2F cred if present
 func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
-	return u.Credentials
+	creds := u.Credentials
+
+	if u.EncryptedKeyHandle != "" && u.EncryptedPublicKey != "" {
+		credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
+		if err != nil {
+			fmt.Printf("unable to decrypt credential id: %s", err)
+			return nil
+		}
+
+		// decryption process includes extra/invalid \x00 character, so trim it out
+		credId = bytes.Trim(credId, "\x00")
+		fmt.Printf("\n\nCredId string: %v\n", string(credId))
+		fmt.Printf("CredId: %v\n", credId)
+
+		pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
+		if err != nil {
+			fmt.Printf("unable to decrypt pubic key: %s", err)
+			return nil
+		}
+
+		pubKey = bytes.Trim(pubKey, "\x00")
+		fmt.Printf("\n\nPub key: %s\n\n", string(pubKey))
+
+		creds = append(creds, webauthn.Credential{
+			ID:              credId,
+			PublicKey:       pubKey,
+			AttestationType: string(protocol.PublicKeyCredentialType),
+		})
+	}
+
+	return creds
 }
 
 // isNullByteSlice works around a bug in json unmarshalling for a urlencoded base64 string

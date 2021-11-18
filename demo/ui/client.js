@@ -111,7 +111,7 @@ const createWebauthnAuthentication = (apiBaseUrl, apiKey, apiSecret, form) => {
         loginChallenge => {
             console.log('loginChallenge:', loginChallenge); // TEMP
             console.log('Modified loginChallenge:', loginChallenge); // TEMP
-            return window.solveLoginChallenge(loginChallenge.publicKey);
+            return SimpleWebAuthnBrowser.startAuthentication(loginChallenge.publicKey);
         }
     ).then(
         authenticationCredential => sendWebauthnAuthenticationToServer(

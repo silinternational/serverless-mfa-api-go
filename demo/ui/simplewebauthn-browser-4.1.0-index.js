@@ -120,4 +120,4 @@ async function platformAuthenticatorIsAvailable() {
     return PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
 }
 
-export { browserSupportsWebauthn, platformAuthenticatorIsAvailable, startAuthentication, startRegistration };
+SimpleWebAuthnBrowser = { browserSupportsWebauthn, platformAuthenticatorIsAvailable, startAuthentication, startRegistration };

@@ -134,7 +134,10 @@ const createWebauthnRegistration = (apiBaseUrl, apiKey, apiSecret, registrationR
     ).then(
         response => response.json()
     ).then(
-        options => window.solveRegistrationChallenge(options.publicKey)
+        options => SimpleWebAuthnBrowser.startRegistration({
+            excludeCredentials: [],
+            ...options.publicKey,
+        })
     ).then(
         registrationCredential => sendWebauthnRegistrationToServer(
             apiBaseUrl,

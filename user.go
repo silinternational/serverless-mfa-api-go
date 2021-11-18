@@ -2,6 +2,7 @@ package serverless_mfa_api_go
 
 import (
 	"bytes"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -300,6 +301,13 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			fmt.Printf("unable to decrypt credential id: %s", err)
 			return nil
 		}
+		
+		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
+		if err != nil {
+			fmt.Println("error decoding credential id:", err)
+			return nil
+		}
+		log.Printf("\nDecoded CredId: %v\n", decodedCredId)
 
 		// decryption process includes extra/invalid \x00 character, so trim it out
 		credId = bytes.Trim(credId, "\x00")
@@ -316,7 +324,7 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 		fmt.Printf("\n\nPub key: %s\n\n", string(pubKey))
 
 		creds = append(creds, webauthn.Credential{
-			ID:              credId,
+			ID:              decodedCredId, // credId,
 			PublicKey:       pubKey,
 			AttestationType: string(protocol.PublicKeyCredentialType),
 		})

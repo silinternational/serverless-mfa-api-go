@@ -1,0 +1,10 @@
+{
+  "trustedFacets" : [{
+    "version": { "major": 1, "minor" : 0 },
+    "ids": [
+        "https://appsdev.iidp.net",
+        "https://appsdev-pw.iidp.net",
+        "https://dev1.iidp.net"
+    ]
+  }]
+}

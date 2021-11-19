@@ -10,11 +10,12 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/fxamacker/cbor/v2"
+	"github.com/pkg/errors"
+
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/fxamacker/cbor/v2"
-	"github.com/pkg/errors"
 )
 
 const WebAuthnTablePK = "uuid"
@@ -343,10 +344,17 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			return nil
 		}
 
-		key := webauthncose.OKPPublicKeyData{
-			XCoord: decodedPubKey,
+		coordLen := (len(decodedPubKey) - 1) / 2
+
+		xCoord := decodedPubKey[1 : coordLen+1]
+		yCoord := decodedPubKey[1+coordLen:]
+
+		key := webauthncose.EC2PublicKeyData{
+			XCoord: xCoord,
+			YCoord: yCoord,
 			PublicKeyData: webauthncose.PublicKeyData{
-				KeyType: int64(webauthncose.EllipticKey),
+				Algorithm: int64(webauthncose.AlgES256),
+				KeyType:   int64(webauthncose.EllipticKey),
 			},
 		}
 

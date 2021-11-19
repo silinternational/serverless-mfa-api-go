@@ -10,6 +10,7 @@ require (
 	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
 	github.com/dustin/go-humanize v1.0.1-0.20200219035652-afde56e7acac // indirect
 	github.com/fatih/color v1.8.0 // indirect
+	github.com/fxamacker/cbor/v2 v2.2.0
 	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e // indirect
 	github.com/golang/mock v1.4.1 // indirect
@@ -37,9 +38,7 @@ require (
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
-	github.com/ugorji/go/codec v1.1.7
 	github.com/urfave/cli v1.22.2 // indirect
-	gitlab.com/elktree/ecc v0.0.0-20190314182556-d86af7b58391
 	go.etcd.io/etcd v3.3.18+incompatible // indirect
 	go.uber.org/zap v1.15.0 // indirect
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37

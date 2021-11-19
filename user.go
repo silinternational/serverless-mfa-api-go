@@ -5,7 +5,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -14,10 +13,8 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/pkg/errors"
-	"github.com/ugorji/go/codec"
-
-	"gitlab.com/elktree/ecc"
 )
 
 const WebAuthnTablePK = "uuid"
@@ -323,25 +320,20 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			fmt.Printf("unable to decrypt credential id: %s", err)
 			return nil
 		}
+		// decryption process includes extra/invalid \x00 character, so trim it out
+		credId = bytes.Trim(credId, "\x00")
 
 		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
 		if err != nil {
 			fmt.Println("error decoding credential id:", err)
 			return nil
 		}
-		//log.Printf("\nDecoded CredId: %v\n", decodedCredId)
-
-		// decryption process includes extra/invalid \x00 character, so trim it out
-		credId = bytes.Trim(credId, "\x00")
-		//fmt.Printf("\n\nCredId string: %v\n", string(credId))
-		//fmt.Printf("CredId: %v\n", credId)
 
 		pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
 		if err != nil {
 			fmt.Printf("unable to decrypt pubic key: %s", err)
 			return nil
 		}
-
 		pubKey = bytes.Trim(pubKey, "\x00")
 		fmt.Printf("\n\npub key: %s\n", string(pubKey))
 
@@ -351,50 +343,23 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			return nil
 		}
 
-		encoded := pem.EncodeToMemory(&pem.Block{
-			Type:  "RSA PUBLIC KEY",
-			Bytes: decodedPubKey,
-		})
-		pub, err := ecc.DecodePEMPublicKey(encoded)
-		if err != nil {
-			fmt.Printf("error pem decoding key: %s\n", err)
-			return nil
-		}
-
-		//fmt.Printf("pem encoded: %s\n", string(encoded))
-		//
-		//// Decode existing stored public key
-		//parsedKey, err := x509.ParsePKIXPublicKey(encoded)
-		//if err != nil {
-		//	fmt.Printf("\n\nfailed to parse public key: %s\n\n", err)
-		//	return nil
-		//}
-		//publicKey := parsedKey.(*ecdsa.PublicKey)
-		// Map into EC2PublicKeyData
-		curveParams := pub.Key.Curve.Params()
-		publicKeyData := webauthncose.EC2PublicKeyData{
+		key := webauthncose.OKPPublicKeyData{
+			XCoord: decodedPubKey,
 			PublicKeyData: webauthncose.PublicKeyData{
-				KeyType:   2,
-				Algorithm: -7,
+				KeyType: int64(webauthncose.EllipticKey),
 			},
-			XCoord: pub.Key.X.Bytes(),
-			YCoord: pub.Key.Y.Bytes(),
-			Curve:  curveParams.B.Int64(),
 		}
 
-		// Encode to raw format based on webauthn spec
-		var cborHandler codec.Handle = new(codec.CborHandle)
-		var publicKeyRaw []byte
-		e := codec.NewEncoderBytes(&publicKeyRaw, cborHandler)
-		err = e.Encode(publicKeyData)
+		// Get the CBOR-encoded representation of the OKPPublicKeyData
+		buf, err := cbor.Marshal(key)
 		if err != nil {
-			fmt.Printf("error encoding key to cbor: %s", err)
+			fmt.Printf("error marshalling key to cbor: %s", err)
 			return nil
 		}
 
 		creds = append(creds, webauthn.Credential{
 			ID:              decodedCredId, // credId,
-			PublicKey:       publicKeyRaw,
+			PublicKey:       buf,
 			AttestationType: string(protocol.PublicKeyCredentialType),
 		})
 	}

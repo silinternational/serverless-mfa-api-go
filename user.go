@@ -78,7 +78,7 @@ func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
 
 	js, err := json.Marshal(sessionData)
 	if err != nil {
-		fmt.Printf("error marshaling session data to json. Session data: %+v\n Error: %s\n", sessionData, err)
+		log.Printf("error marshaling session data to json. Session data: %+v\n Error: %s\n", sessionData, err)
 		return err
 	}
 
@@ -231,7 +231,7 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 
 	err = u.saveSessionData(*sessionData)
 	if err != nil {
-		fmt.Printf("error saving session data: %s\n", err)
+		log.Printf("error saving session data: %s\n", err)
 		return nil, err
 	}
 
@@ -318,38 +318,42 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 	if u.EncryptedKeyHandle != "" && u.EncryptedPublicKey != "" {
 		credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
 		if err != nil {
-			fmt.Printf("unable to decrypt credential id: %s", err)
+			log.Printf("unable to decrypt credential id: %s", err)
 			return nil
 		}
+
 		// decryption process includes extra/invalid \x00 character, so trim it out
-		credId = bytes.Trim(credId, "\x00")
+		// at some point early in dev this was needed, but in testing recently it doesn't
+		// make a difference. Leaving commented out for now until we know 100% it's not needed
+		//credId = bytes.Trim(credId, "\x00")
 
 		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
 		if err != nil {
-			fmt.Println("error decoding credential id:", err)
+			log.Println("error decoding credential id:", err)
 			return nil
 		}
 
 		pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
 		if err != nil {
-			fmt.Printf("unable to decrypt pubic key: %s", err)
+			log.Printf("unable to decrypt pubic key: %s", err)
 			return nil
 		}
-		pubKey = bytes.Trim(pubKey, "\x00")
-		fmt.Printf("\n\npub key: %s\n", string(pubKey))
+		// Same as credId
+		//pubKey = bytes.Trim(pubKey, "\x00")
 
 		decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
 		if err != nil {
-			fmt.Println("error decoding public key:", err)
+			log.Println("error decoding public key:", err)
 			return nil
 		}
 
+		// U2F key is concatenation of 0x4 + Xcoord + Ycoord
+		// documentation / example at https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html
 		coordLen := (len(decodedPubKey) - 1) / 2
-
 		xCoord := decodedPubKey[1 : coordLen+1]
 		yCoord := decodedPubKey[1+coordLen:]
 
-		key := webauthncose.EC2PublicKeyData{
+		ec2PublicKey := webauthncose.EC2PublicKeyData{
 			XCoord: xCoord,
 			YCoord: yCoord,
 			PublicKeyData: webauthncose.PublicKeyData{
@@ -359,15 +363,15 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 		}
 
 		// Get the CBOR-encoded representation of the OKPPublicKeyData
-		buf, err := cbor.Marshal(key)
+		cborEncodedKey, err := cbor.Marshal(ec2PublicKey)
 		if err != nil {
-			fmt.Printf("error marshalling key to cbor: %s", err)
+			log.Printf("error marshalling key to cbor: %s", err)
 			return nil
 		}
 
 		creds = append(creds, webauthn.Credential{
-			ID:              decodedCredId, // credId,
-			PublicKey:       buf,
+			ID:              decodedCredId,
+			PublicKey:       cborEncodedKey,
 			AttestationType: string(protocol.PublicKeyCredentialType),
 		})
 	}

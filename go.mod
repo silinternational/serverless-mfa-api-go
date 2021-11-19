@@ -7,7 +7,7 @@ require (
 	github.com/coreos/bbolt v1.3.3 // indirect
 	github.com/coreos/etcd v3.3.18+incompatible // indirect
 	github.com/cpuguy83/go-md2man/v2 v2.0.0 // indirect
-	github.com/duo-labs/webauthn v0.0.0-20200408163612-425dee8942f4
+	github.com/duo-labs/webauthn v0.0.0-20210727191636-9f1b88ef44cc
 	github.com/dustin/go-humanize v1.0.1-0.20200219035652-afde56e7acac // indirect
 	github.com/fatih/color v1.8.0 // indirect
 	github.com/gogo/protobuf v1.3.1 // indirect
@@ -37,7 +37,9 @@ require (
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
+	github.com/ugorji/go/codec v1.1.7
 	github.com/urfave/cli v1.22.2 // indirect
+	gitlab.com/elktree/ecc v0.0.0-20190314182556-d86af7b58391
 	go.etcd.io/etcd v3.3.18+incompatible // indirect
 	go.uber.org/zap v1.15.0 // indirect
 	golang.org/x/crypto v0.0.0-20200510223506-06a226fb4e37

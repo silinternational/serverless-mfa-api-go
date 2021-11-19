@@ -2,16 +2,22 @@ package serverless_mfa_api_go
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
 
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/pkg/errors"
+	"github.com/ugorji/go/codec"
+
+	"gitlab.com/elktree/ecc"
 )
 
 const WebAuthnTablePK = "uuid"
@@ -255,6 +261,22 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
 	}
 
+	// If user has registered U2F creds, check if RPIDHash is actually hash of AppId
+	// if so, replace authenticator data RPIDHash with a hash of the RPID for validation
+	if u.EncryptedAppId != "" {
+		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
+		if err != nil {
+			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
+		}
+
+		appIdHash := sha256.Sum256([]byte(appid))
+		rpIdHash := sha256.Sum256([]byte(u.WebAuthnClient.Config.RPID))
+
+		if fmt.Sprintf("%x", parsedResponse.Response.AuthenticatorData.RPIDHash) == fmt.Sprintf("%x", appIdHash) {
+			parsedResponse.Response.AuthenticatorData.RPIDHash = rpIdHash[:]
+		}
+	}
+
 	// there is an issue with URLEncodeBase64.UnmarshalJSON and null values
 	// see https://github.com/duo-labs/webauthn/issues/69
 	// null byte sequence is []byte{158,233,101}
@@ -301,18 +323,18 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			fmt.Printf("unable to decrypt credential id: %s", err)
 			return nil
 		}
-		
+
 		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
 		if err != nil {
 			fmt.Println("error decoding credential id:", err)
 			return nil
 		}
-		log.Printf("\nDecoded CredId: %v\n", decodedCredId)
+		//log.Printf("\nDecoded CredId: %v\n", decodedCredId)
 
 		// decryption process includes extra/invalid \x00 character, so trim it out
 		credId = bytes.Trim(credId, "\x00")
-		fmt.Printf("\n\nCredId string: %v\n", string(credId))
-		fmt.Printf("CredId: %v\n", credId)
+		//fmt.Printf("\n\nCredId string: %v\n", string(credId))
+		//fmt.Printf("CredId: %v\n", credId)
 
 		pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
 		if err != nil {
@@ -321,11 +343,58 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 		}
 
 		pubKey = bytes.Trim(pubKey, "\x00")
-		fmt.Printf("\n\nPub key: %s\n\n", string(pubKey))
+		fmt.Printf("\n\npub key: %s\n", string(pubKey))
+
+		decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
+		if err != nil {
+			fmt.Println("error decoding public key:", err)
+			return nil
+		}
+
+		encoded := pem.EncodeToMemory(&pem.Block{
+			Type:  "RSA PUBLIC KEY",
+			Bytes: decodedPubKey,
+		})
+		pub, err := ecc.DecodePEMPublicKey(encoded)
+		if err != nil {
+			fmt.Printf("error pem decoding key: %s\n", err)
+			return nil
+		}
+
+		//fmt.Printf("pem encoded: %s\n", string(encoded))
+		//
+		//// Decode existing stored public key
+		//parsedKey, err := x509.ParsePKIXPublicKey(encoded)
+		//if err != nil {
+		//	fmt.Printf("\n\nfailed to parse public key: %s\n\n", err)
+		//	return nil
+		//}
+		//publicKey := parsedKey.(*ecdsa.PublicKey)
+		// Map into EC2PublicKeyData
+		curveParams := pub.Key.Curve.Params()
+		publicKeyData := webauthncose.EC2PublicKeyData{
+			PublicKeyData: webauthncose.PublicKeyData{
+				KeyType:   2,
+				Algorithm: -7,
+			},
+			XCoord: pub.Key.X.Bytes(),
+			YCoord: pub.Key.Y.Bytes(),
+			Curve:  curveParams.B.Int64(),
+		}
+
+		// Encode to raw format based on webauthn spec
+		var cborHandler codec.Handle = new(codec.CborHandle)
+		var publicKeyRaw []byte
+		e := codec.NewEncoderBytes(&publicKeyRaw, cborHandler)
+		err = e.Encode(publicKeyData)
+		if err != nil {
+			fmt.Printf("error encoding key to cbor: %s", err)
+			return nil
+		}
 
 		creds = append(creds, webauthn.Credential{
 			ID:              decodedCredId, // credId,
-			PublicKey:       pubKey,
+			PublicKey:       publicKeyRaw,
 			AttestationType: string(protocol.PublicKeyCredentialType),
 		})
 	}

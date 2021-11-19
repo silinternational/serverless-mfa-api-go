@@ -229,6 +229,7 @@ func getWebAuthnFromApiMeta(config ApiMeta) (*webauthn.WebAuthn, error) {
 		RPID:          config.RPID,          // Generally the FQDN for your site
 		RPOrigin:      config.RPOrigin,      // The origin URL for WebAuthn requests
 		RPIcon:        config.RPIcon,        // Optional icon URL for your site
+		Debug:         true,
 	})
 	if err != nil {
 		fmt.Println(err)

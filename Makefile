@@ -1,4 +1,5 @@
 demo: proxy ui app dbinit
+	./local_data.sh
 
 proxy:
 	docker-compose up -d proxy
@@ -10,6 +11,9 @@ app:
 	docker-compose kill app
 	docker-compose rm -f app
 	docker-compose up -d app
+
+test: clean dbinit
+	docker-compose run --rm app go test ./...
 
 db:
 	docker-compose up -d dynamo

@@ -1,9 +1,12 @@
 package serverless_mfa_api_go
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"encoding/base64"
+	"fmt"
 	"io"
 
 	"github.com/pkg/errors"
@@ -55,8 +58,14 @@ func (k *ApiKey) IsCorrect(given string) (bool, error) {
 }
 
 func (k *ApiKey) Encrypt(plaintext []byte) ([]byte, error) {
+	var sec []byte
+	var err error
+	sec, err = base64.StdEncoding.DecodeString(k.Secret)
+	if err != nil {
+		sec = []byte(k.Secret)
+	}
 	// create cipher block with api secret as aes key
-	block, err := aes.NewCipher([]byte(k.Secret))
+	block, err := aes.NewCipher(sec)
 	if err != nil {
 		return []byte{}, err
 	}
@@ -79,7 +88,14 @@ func (k *ApiKey) Encrypt(plaintext []byte) ([]byte, error) {
 }
 
 func (k *ApiKey) Decrypt(ciphertext []byte) ([]byte, error) {
-	block, err := aes.NewCipher([]byte(k.Secret))
+	var sec []byte
+	var err error
+	sec, err = base64.StdEncoding.DecodeString(k.Secret)
+	if err != nil {
+		sec = []byte(k.Secret)
+	}
+
+	block, err := aes.NewCipher(sec)
 	if err != nil {
 		return []byte{}, errors.Wrap(err, "failed to create new cipher")
 	}
@@ -94,6 +110,50 @@ func (k *ApiKey) Decrypt(ciphertext []byte) ([]byte, error) {
 	// use CTR to decrypt content
 	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(plaintext, ciphertext[aes.BlockSize:])
+
+	return plaintext, nil
+}
+
+func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
+	var sec []byte
+	var err error
+	sec, err = base64.StdEncoding.DecodeString(k.Secret)
+	if err != nil {
+		sec = []byte(k.Secret)
+	}
+
+	block, err := aes.NewCipher(sec)
+	if err != nil {
+		return []byte{}, errors.Wrap(err, "failed to create new cipher")
+	}
+
+	// data was encrypted, then base64 encoded, then joined with a :, need to split
+	// on :, then decode first part as iv and second as encrypted content
+	parts := bytes.Split(ciphertext, []byte(":"))
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("ciphertext contains more than one colon, does not look like legacy data")
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	_, err = base64.StdEncoding.Decode(iv, parts[0])
+	if err != nil {
+		fmt.Printf("unable to decode iv: %s\n", err)
+		return nil, err
+	}
+
+	decodedCipher, err := base64.StdEncoding.DecodeString(string(parts[1]))
+	if err != nil {
+		fmt.Printf("unable to decode ciphertext: %s\n", err)
+		return nil, err
+	}
+
+	// plaintext will hold decrypted content, it must be at least as long
+	// as ciphertext or decryption process will panic
+	plaintext := make([]byte, len(decodedCipher))
+
+	// use CTR to decrypt content
+	stream := cipher.NewCTR(block, iv)
+	stream.XORKeyStream(plaintext, decodedCipher)
 
 	return plaintext, nil
 }

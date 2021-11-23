@@ -1,4 +1,4 @@
-package serverless_mfa_api_go
+package mfa
 
 import (
 	"bytes"

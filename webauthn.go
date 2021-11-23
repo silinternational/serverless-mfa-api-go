@@ -1,4 +1,4 @@
-package serverless_mfa_api_go
+package mfa
 
 import (
 	"bytes"
@@ -8,25 +8,10 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/gorilla/mux"
 )
-
-var (
-	storage   *Storage
-	envConfig EnvConfig
-)
-
-// EnvConfig holds environment specific configurations and is populated on init
-type EnvConfig struct {
-	ApiKeyTableName   string `json:"ApiKeyTableName"`
-	WebAuthnTableName string `json:"WebAuthnTableName"`
-	AWSConfig         *aws.Config
-}
 
 // ApiMeta holds metadata about the calling service for use in WebAuthn responses.
 // Since this service/api is consumed by multiple sources this information cannot
@@ -42,142 +27,66 @@ type ApiMeta struct {
 	UserIcon        string `json:"UserIcon"`
 }
 
-// Route is used to pass information about a particular route.
-type Route struct {
-	Name        string
-	Method      string
-	Pattern     string
-	HandlerFunc http.HandlerFunc
-}
-
-// Routes is a slice of Route.
-type Routes []Route
-
-// Define our routes.
-var routes = Routes{
-	Route{
-		"BeginRegistration",
-		"POST",
-		"/webauthn/register",
-		BeginRegistration,
-	},
-	Route{
-		"FinishRegistration",
-		"PUT",
-		"/webauthn/register",
-		FinishRegistration,
-	},
-	Route{
-		"BeginLogin",
-		"POST",
-		"/webauthn/login",
-		BeginLogin,
-	},
-	Route{
-		"FinishLogin",
-		"PUT",
-		"/webauthn/login",
-		FinishLogin,
-	},
-}
-
-// NewRouter forms a new mux router, see https://github.com/gorilla/mux.
-func NewRouter(config EnvConfig, mws []mux.MiddlewareFunc) *mux.Router {
-	envConfig = config
-
-	// init storage from envConfig
-	var err error
-	storage, err = NewStorage(envConfig.AWSConfig)
-	if err != nil {
-		log.Printf("error initializing storage: %s", err.Error())
-		os.Exit(1)
-	}
-
-	// Create a basic router.
-	router := mux.NewRouter().StrictSlash(true)
-
-	// attach any extra middleware
-	for _, mw := range mws {
-		router.Use(mw)
-	}
-
-	// authenticate request based on api key and secret in headers
-	// also adds apiKey to context for help with encryption/decryption
-	router.Use(AuthenticationMiddleware)
-
-	// Assign the handlers to run when endpoints are called.
-	for _, route := range routes {
-		// Create a handler function.
-		var handler http.Handler
-		handler = route.HandlerFunc
-
-		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
-	}
-
-	router.NotFoundHandler = router.NewRoute().HandlerFunc(NotFound).GetHandler()
-	return router
-}
-
 func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 	}
 
 	options, err := user.BeginRegistration()
 	if err != nil {
-		JSONResponse(w, fmt.Sprintf("failed to begin registration: %s", err.Error()), http.StatusBadRequest)
+		jsonResponse(w, fmt.Sprintf("failed to begin registration: %s", err.Error()), http.StatusBadRequest)
 		return
 	}
 
-	JSONResponse(w, options, http.StatusOK)
+	jsonResponse(w, options, http.StatusOK)
 }
 
 func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 		return
 	}
 
 	err = user.FinishRegistration(r)
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 		return
 	}
 
-	JSONResponse(w, "Registration Success", http.StatusOK) // Handle next steps
+	jsonResponse(w, "Registration Success", http.StatusOK) // Handle next steps
 }
 
 func BeginLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error getting user from context: %s\n", err)
 		return
 	}
 
 	options, err := user.BeginLogin()
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error beginning user login: %s\n", err)
 		return
 	}
 
-	JSONResponse(w, options, http.StatusOK)
+	jsonResponse(w, options, http.StatusOK)
 }
 
 func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error getting user from context: %s\n", err)
 		return
 	}
 
 	credential, err := user.FinishLogin(r)
 	if err != nil {
-		JSONResponse(w, err, http.StatusBadRequest)
+		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error finishing user login	: %s\n", err)
 		return
 	}
@@ -186,24 +95,10 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 		"credentialId": string(credential.ID),
 	}
 
-	JSONResponse(w, resp, http.StatusOK)
+	jsonResponse(w, resp, http.StatusOK)
 }
 
-func NotFound(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=UTF-8")
-	w.WriteHeader(http.StatusNotFound)
-
-	notFound := map[string]string{
-		"Method":     r.Method,
-		"URL":        r.URL.String(),
-		"RequestURI": r.RequestURI,
-	}
-	if err := json.NewEncoder(w).Encode(notFound); err != nil {
-		log.Printf("%s: %s", "ERROR could not marshal not found message to JSON", err.Error())
-	}
-}
-
-func JSONResponse(w http.ResponseWriter, body interface{}, status int) {
+func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	jBody, err := json.Marshal(body)
 	if err != nil {
 		log.Printf("failed to marshal response body to json: %s\n", err.Error())
@@ -223,12 +118,12 @@ func fixEncoding(content []byte) (io.Reader, error) {
 	return bytes.NewReader([]byte(allStr)), nil
 }
 
-func getWebAuthnFromApiMeta(config ApiMeta) (*webauthn.WebAuthn, error) {
+func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: config.RPDisplayName, // Display Name for your site
-		RPID:          config.RPID,          // Generally the FQDN for your site
-		RPOrigin:      config.RPOrigin,      // The origin URL for WebAuthn requests
-		RPIcon:        config.RPIcon,        // Optional icon URL for your site
+		RPDisplayName: meta.RPDisplayName, // Display Name for your site
+		RPID:          meta.RPID,          // Generally the FQDN for your site
+		RPOrigin:      meta.RPOrigin,      // The origin URL for WebAuthn requests
+		RPIcon:        meta.RPIcon,        // Optional icon URL for your site
 		Debug:         true,
 	})
 	if err != nil {
@@ -279,11 +174,73 @@ func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 	return meta, nil
 }
 
-func getUserFromContext(r *http.Request) (DynamoUser, error) {
-	user, ok := r.Context().Value("user").(DynamoUser)
+func getUserFromContext(r *http.Request) (*DynamoUser, error) {
+	user, ok := r.Context().Value(UserContextKey).(*DynamoUser)
 	if !ok {
-		return DynamoUser{}, errors.New("unable to get user from request context")
+		return &DynamoUser{}, errors.New("unable to get user from request context")
 	}
 
 	return user, nil
+}
+
+func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
+	// get key and secret from headers
+	key := r.Header.Get("x-mfa-key")
+	secret := r.Header.Get("x-mfa-secret")
+
+	if key == "" || secret == "" {
+		return nil, fmt.Errorf("x-mfa-key and x-mfa-secret are required")
+	}
+
+	log.Printf("API called by key: %s. %s %s", key, r.Method, r.RequestURI)
+
+	localStorage, err := NewStorage(envConfig.AWSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing storage: %s", err.Error())
+	}
+
+	apiKey := ApiKey{
+		Key:    key,
+		Secret: secret,
+		Store:  localStorage,
+	}
+
+	err = apiKey.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load api key: %s", err.Error())
+	}
+
+	if apiKey.ActivatedAt == 0 {
+		return nil, fmt.Errorf("api call attempted for not yet activated key: %s", apiKey.Key)
+	}
+
+	valid, err := apiKey.IsCorrect(secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate api key: %s", err.Error())
+	}
+
+	if !valid {
+		return nil, fmt.Errorf("invalid api secret for key %s: %s", key, err.Error())
+	}
+
+	// apiMeta includes info about the user and webauthn config
+	apiMeta, err := getApiMetaFromRequest(r)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve api meta information from request: %s", err.Error())
+	}
+
+	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %s", err.Error())
+	}
+
+	user := NewDynamoUser(apiMeta, localStorage, apiKey, webAuthnClient)
+
+	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
+	if user.APIKeyValue != "" && user.APIKeyValue != apiKey.Key {
+		log.Printf("api key %s tried to access user %s but that user does not belong to that api key", apiKey.Key, user.ID)
+		return nil, fmt.Errorf("user does not exist")
+	}
+
+	return &user, nil
 }

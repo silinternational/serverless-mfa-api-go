@@ -1,4 +1,4 @@
-package serverless_mfa_api_go
+package mfa
 
 import (
 	"bytes"
@@ -27,7 +27,7 @@ type ApiKey struct {
 }
 
 func (k *ApiKey) Load() error {
-	return k.Store.Load(envConfig.ApiKeyTableName, ApiKeyTablePK, k.Key, k)
+	return k.Store.Load(envConfig.ApiKeyTable, ApiKeyTablePK, k.Key, k)
 }
 
 // Hash - Generate bcrypt hash from Secret and store in HashedSecret

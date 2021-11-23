@@ -1,0 +1,33 @@
+test:
+  build:
+    dockerfile_path: Dockerfile
+  cached: true
+  environment:
+    AWS_ENDPOINT: dynamo:8000
+    AWS_DEFAULT_REGION: us-east-1
+    AWS_ACCESS_KEY_ID: abc123
+    AWS_SECRET_ACCESS_KEY: abc123
+    AWS_DISABLE_SSL: "true"
+    API_KEY_TABLE: ApiKey
+    WEBAUTHN_TABLE: WebAuthn
+  working_dir: /mfa
+
+app:
+  build:
+    dockerfile_path: Dockerfile
+  cached: true
+  encrypted_env_file: aws.env.encrypted
+  working_dir: /mfa
+
+dynamo:
+  image: amazon/dynamodb-local
+  environment:
+    AWS_ACCESS_KEY_ID: abc123
+    AWS_SECRET_ACCESS_KEY: abc123
+    AWS_DEFAULT_REGION: us-east-1
+  command: "-jar DynamoDBLocal.jar -sharedDb"
+
+tracker:
+  image: silintl/app-deployment-tracker-ga:latest
+  environment:
+    TRACKING_ID: UA-56269387-10

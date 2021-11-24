@@ -9,7 +9,7 @@ services:
     volumes:
       - ./.cert/:/cert/
     env_file:
-      - ./.env
+      - local.env
 
   dynamo:
     image: amazon/dynamodb-local
@@ -42,6 +42,6 @@ services:
   ui:
     image: httpd:alpine
     volumes:
-      - ./demo/ui:/usr/local/apache2/htdocs
+      - ./demo-ui:/usr/local/apache2/htdocs
     ports:
       - 80

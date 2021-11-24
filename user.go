@@ -1,4 +1,4 @@
-package serverless_mfa_api_go
+package mfa
 
 import (
 	"bytes"
@@ -10,7 +10,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/fxamacker/cbor/v2"
+	cbor "github.com/fxamacker/cbor/v2"
 	"github.com/pkg/errors"
 
 	"github.com/duo-labs/webauthn/protocol"
@@ -18,7 +18,10 @@ import (
 	"github.com/duo-labs/webauthn/webauthn"
 )
 
-const WebAuthnTablePK = "uuid"
+const (
+	UserContextKey  = "user"
+	WebAuthnTablePK = "uuid"
+)
 
 type DynamoUser struct {
 	// Shared fields between U2F and WebAuthn
@@ -66,7 +69,7 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 
 func (u *DynamoUser) unsetSessionData() error {
 	u.EncryptedSessionData = nil
-	return u.Store.Store(envConfig.WebAuthnTableName, u)
+	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 
 func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
@@ -88,7 +91,7 @@ func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
 	}
 
 	u.EncryptedSessionData = enc
-	return u.Store.Store(envConfig.WebAuthnTableName, u)
+	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 
 func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
@@ -120,11 +123,11 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	}
 	u.EncryptedCredentials = enc
 
-	return u.Store.Store(envConfig.WebAuthnTableName, u)
+	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 
 func (u *DynamoUser) Load() error {
-	err := u.Store.Load(envConfig.WebAuthnTableName, WebAuthnTablePK, u.ID, u)
+	err := u.Store.Load(envConfig.WebauthnTable, WebAuthnTablePK, u.ID, u)
 	if err != nil {
 		return errors.Wrap(err, "failed to load user")
 	}

@@ -1,7 +1,8 @@
-package serverless_mfa_api_go
+package mfa
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -11,8 +12,8 @@ import (
 
 // Storage provides wrapper methods for interacting with DynamoDB
 type Storage struct {
-	awsSession *session.Session   `json:"-"`
-	client     *dynamodb.DynamoDB `json:"-"`
+	awsSession *session.Session
+	client     *dynamodb.DynamoDB
 }
 
 func NewStorage(config *aws.Config) (*Storage, error) {
@@ -25,6 +26,9 @@ func NewStorage(config *aws.Config) (*Storage, error) {
 	}
 
 	s.client = dynamodb.New(s.awsSession)
+	if s.client == nil {
+		return nil, fmt.Errorf("failed to create new dynamo client")
+	}
 
 	return &s, nil
 }

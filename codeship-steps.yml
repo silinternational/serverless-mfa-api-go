@@ -5,7 +5,7 @@
 - name: deploy
   service: app
   tag: ^(main|develop)
-  command: ./deploy.sh
+  command: ./lambda/deploy.sh
 
 - name: track_deployment
   service: tracker

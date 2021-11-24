@@ -27,7 +27,7 @@ func NewStorage(config *aws.Config) (*Storage, error) {
 
 	s.client = dynamodb.New(s.awsSession)
 	if s.client == nil {
-		return nil, fmt.Errorf("faild to create new dynamo client")
+		return nil, fmt.Errorf("failed to create new dynamo client")
 	}
 
 	return &s, nil
@@ -49,7 +49,7 @@ func (s *Storage) Store(table string, item interface{}) error {
 	return err
 }
 
-// Load retrieves the value at key and unmarshal it into item.
+// Load retrieves the value at key and unmarshals it into item.
 func (s *Storage) Load(table, attrName, attrVal string, item interface{}) error {
 	if table == "" {
 		return errors.New("table must not be empty")

@@ -18,8 +18,8 @@ func (l lambdaResponseWriter) Write(contents []byte) (int, error) {
 		l.Status = http.StatusOK
 	}
 
-	l.Body = append(l.Body[:], contents[:]...)
-	return len(contents), nil
+	l.Body = append(l.Body, contents...)
+	return len(l.Body), nil
 }
 
 func (l lambdaResponseWriter) WriteHeader(statusCode int) {

@@ -1,7 +1,7 @@
 variable "app_name" {
   type        = string
   description = "A short name for this application, example: backup-service"
-  default     = "project-rama"
+  default     = "serverless-mfa-api-go"
 }
 
 variable "aws_access_key" {

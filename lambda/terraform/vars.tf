@@ -30,7 +30,7 @@ variable "extra_policies" {
     {
       "Effect": "Allow",
       "Action": [
-        "cloudformation:DescribeStacks"
+        "cloudformation:DescribeStacks",
         "ec2:CreateTags",
         "ec2:DeleteTags",
         "ec2:DescribeSecurityGroups",

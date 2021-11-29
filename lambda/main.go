@@ -54,7 +54,7 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	r = r.WithContext(nctx)
 
 	// Use custom lambda http.ResponseWriter
-	w := lambdaResponseWriter{}
+	w := newLambdaResponseWriter()
 
 	route := strings.ToLower(fmt.Sprintf("%s %s", req.HTTPMethod, req.Path))
 

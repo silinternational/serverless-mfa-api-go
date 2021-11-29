@@ -13,6 +13,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/kelseyhightower/envconfig"
+
 	mfa "github.com/silinternational/serverless-mfa-api-go"
 )
 
@@ -29,8 +30,14 @@ func init() {
 }
 
 func main() {
-	log.Println("Begin request")
-	defer log.Println("Finished request")
+	log.SetOutput(os.Stdout)
+
+	err := envconfig.Process("", &envConfig)
+	if err != nil {
+		log.Fatal(fmt.Errorf("error loading env vars: " + err.Error()))
+	}
+	envConfig.InitAWS()
+	mfa.SetConfig(envConfig)
 
 	lambda.Start(handler)
 }

@@ -7,3 +7,4 @@ bin/
 tmp/
 local_test.go
 local_data.sh
+.terraform/

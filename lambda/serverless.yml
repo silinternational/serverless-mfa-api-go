@@ -1,7 +1,7 @@
 # For full config options, check the docs:
 #    docs.serverless.com
 
-service: mfa-api
+service: twosv-api
 
 # You can pin your service to only deploy with a specific Serverless version
 # Check out our docs for more details
@@ -15,8 +15,6 @@ provider:
   logRetentionInDays: 14
   apiGateway:
     shouldStartNameWithService: true
-  apiKeys:
-    - ${self:custom.namespace}-global
 
   # you can define service wide environment variables here
   environment:
@@ -26,31 +24,16 @@ provider:
     WEBAUTHN_TABLE: ${env:WEBAUTHN_TABLE, "webauthn"}
 
   stackTags:
-    app: mfa-api
-    app_name: mfa-api
+    app: ${self:service}
+    app_name: ${self:service}
     app_env: ${opt:stage, self:provider.stage}
 
-  iamRoleStatements:
-    - Effect: "Allow"
-      Action:
-        - "ses:SendEmail"
-      Resource: "*"
-    - Effect: Allow
-      Action:
-        - dynamodb:DescribeTable
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-      Resource: "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:custom.namespace}_*"
+  iam:
+    role: ${env:LAMBDA_ROLE}
 
 custom:
   stage: ${opt:stage, self:provider.stage}
   namespace: ${self:service}_${self:custom.stage}
-  apiKeyTable: ${self:custom.namespace}_api-key
-  webauthnTable: ${self:custom.namespace}_webauthn
 
 package:
   exclude:
@@ -65,30 +48,3 @@ functions:
       - http:
           path: '{webauthn+}'
           method: any
-
-resources:
-  Resources:
-    ApiKeyDynamoDbTable:
-      Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain
-      Properties:
-        AttributeDefinitions:
-          - AttributeName: value
-            AttributeType: S
-        KeySchema:
-          - AttributeName: value
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-        TableName: ${self:custom.apiKeyTable}
-    WebAuthnDynamoDbTable:
-      Type: AWS::DynamoDB::Table
-      DeletionPolicy: Retain
-      Properties:
-        AttributeDefinitions:
-          - AttributeName: uuid
-            AttributeType: S
-        KeySchema:
-          - AttributeName: uuid
-            KeyType: HASH
-        BillingMode: PAY_PER_REQUEST
-        TableName: ${self:custom.webauthnTable}

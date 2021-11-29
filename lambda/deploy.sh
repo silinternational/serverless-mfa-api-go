@@ -16,11 +16,15 @@ go build -ldflags="-s -w" -o ./bin/webauthn .
 if [ "${CI_BRANCH}" == "develop" ];
 then
   STAGE="dev"
+  export AWS_ACCESS_KEY_ID="${STG_AWS_ACCESS_KEY_ID}"
+  export AWS_AWS_SECRET_ACCESS_KEY="${STG_AWS_SECRET_ACCESS_KEY}"
   export API_KEY_TABLE="${STG_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${STG_WEBAUTHN_TABLE}"
 elif [ "${CI_BRANCH}" == "main" ];
 then
   STAGE="production"
+  export AWS_ACCESS_KEY_ID="${PRD_AWS_ACCESS_KEY_ID}"
+  export AWS_AWS_SECRET_ACCESS_KEY="${PRD_AWS_SECRET_ACCESS_KEY}"
   export API_KEY_TABLE="${PRD_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${PRD_WEBAUTHN_TABLE}"
 else

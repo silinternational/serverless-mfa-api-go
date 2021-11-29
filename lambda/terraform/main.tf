@@ -34,8 +34,8 @@ data "template_file" "lambdaRolePolicy" {
     aws_account    = var.aws_account_id
     app_name       = var.app_name
     app_env        = var.app_env
-    api_key_table  = var.api_key_table != "" ? var.api_key_table : aws_dynamodb_table.apiKeyTable
-    webauthn_table = var.webauthn_table != "" ? var.webauthn_table : aws_dynamodb_table.webauthnTable
+    api_key_table  = var.api_key_table != "" ? var.api_key_table : aws_dynamodb_table.apiKeyTable.name
+    webauthn_table = var.webauthn_table != "" ? var.webauthn_table : aws_dynamodb_table.webauthnTable.name
   }
 }
 

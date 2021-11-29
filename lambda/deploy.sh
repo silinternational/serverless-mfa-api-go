@@ -15,7 +15,7 @@ go build -ldflags="-s -w" -o ./bin/webauthn .
 # export appropriate env vars
 if [ "${CI_BRANCH}" == "develop" ];
 then
-  STAGE="staging"
+  STAGE="dev"
   export API_KEY_TABLE="${STG_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${STG_WEBAUTHN_TABLE}"
 elif [ "${CI_BRANCH}" == "main" ];

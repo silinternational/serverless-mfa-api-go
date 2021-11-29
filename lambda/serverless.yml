@@ -65,7 +65,6 @@ functions:
       - http:
           path: '{webauthn+}'
           method: any
-          private: true
 
 resources:
   Resources:

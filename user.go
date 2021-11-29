@@ -14,6 +14,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/duo-labs/webauthn/protocol"
+	"github.com/duo-labs/webauthn/protocol/webauthncose"
 	"github.com/duo-labs/webauthn/webauthn"
 )
 

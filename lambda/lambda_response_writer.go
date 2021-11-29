@@ -8,10 +8,10 @@ type lambdaResponseWriter struct {
 	Status  int
 }
 
-func newLambdaResponseWriter() lambdaResponseWriter {
-	w := lambdaResponseWriter{}
-	w.Headers = http.Header{}
-	return w
+func newLambdaResponseWriter() *lambdaResponseWriter {
+	return &lambdaResponseWriter{
+		Headers: http.Header{},
+	}
 }
 
 func (l lambdaResponseWriter) Header() http.Header {

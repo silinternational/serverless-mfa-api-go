@@ -102,11 +102,17 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	jBody, err := json.Marshal(body)
 	if err != nil {
 		log.Printf("failed to marshal response body to json: %s\n", err.Error())
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte("failed to marshal response body to json"))
+		return
 	}
 
 	w.Header().Set("content-type", "application/json")
 	w.WriteHeader(status)
-	_, _ = fmt.Fprintf(w, "%s", jBody)
+	_, err = w.Write(jBody)
+	if err != nil {
+		log.Printf("faild to write response in jsonResponse: %s\n", err)
+	}
 }
 
 func fixEncoding(content []byte) (io.Reader, error) {

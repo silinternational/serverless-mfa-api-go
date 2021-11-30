@@ -146,7 +146,7 @@ func (u *DynamoUser) Load() error {
 		var sd webauthn.SessionData
 		err = json.Unmarshal(plain, &sd)
 		if err != nil {
-			return errors.Wrap(err, "failed to unmarshal session data")
+			log.Printf("failed to unmarshal encrypted session data, will discard and continue. error: %s", err)
 		}
 
 		u.SessionData = sd

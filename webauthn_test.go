@@ -1,9 +1,9 @@
 package mfa
 
 import (
-	"github.com/duo-labs/webauthn/protocol"
-
 	"testing"
+
+	"github.com/duo-labs/webauthn/protocol"
 )
 
 func Test_Parse(t *testing.T) {

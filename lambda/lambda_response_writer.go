@@ -14,11 +14,11 @@ func newLambdaResponseWriter() *lambdaResponseWriter {
 	}
 }
 
-func (l lambdaResponseWriter) Header() http.Header {
+func (l *lambdaResponseWriter) Header() http.Header {
 	return l.Headers
 }
 
-func (l lambdaResponseWriter) Write(contents []byte) (int, error) {
+func (l *lambdaResponseWriter) Write(contents []byte) (int, error) {
 	// If WriteHeader has not been called, Write is supposed to set default status code
 	if l.Status == 0 {
 		l.Status = http.StatusOK
@@ -28,6 +28,6 @@ func (l lambdaResponseWriter) Write(contents []byte) (int, error) {
 	return len(l.Body), nil
 }
 
-func (l lambdaResponseWriter) WriteHeader(statusCode int) {
+func (l *lambdaResponseWriter) WriteHeader(statusCode int) {
 	l.Status = statusCode
 }

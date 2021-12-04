@@ -205,11 +205,11 @@ func getUserFromContext(r *http.Request) (*DynamoUser, error) {
 
 func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 	// get key and secret from headers
-	key := r.Header.Get("x-mfa-key")
-	secret := r.Header.Get("x-mfa-secret")
+	key := r.Header.Get("x-mfa-apikey")
+	secret := r.Header.Get("x-mfa-apisecret")
 
 	if key == "" || secret == "" {
-		return nil, fmt.Errorf("x-mfa-key and x-mfa-secret are required")
+		return nil, fmt.Errorf("x-mfa-apikey and x-mfa-apisecret are required")
 	}
 
 	log.Printf("API called by key: %s. %s %s", key, r.Method, r.RequestURI)

@@ -18,8 +18,8 @@ the request body. We chose to use headers though so that what is sent in the bod
 to the WebAuthn library and fit the structures it was expecting without causing any conflicts, etc.
 
 ### Required Headers
-1. `x-mfa-key` - The API Key
-2. `x-mfa-secret` - The API Key Secret
+1. `x-mfa-apikey` - The API Key
+2. `x-mfa-apisecret` - The API Key Secret
 3. `x-mfa-RPDisplayName` - The Relay Party Display Name, ex: `ACME Inc.`
 4. `x-mfa-RPID` - The Relay Party ID, ex: `domain.com` (should only be the top level domain, no subdomain, protocol, 
 or path)

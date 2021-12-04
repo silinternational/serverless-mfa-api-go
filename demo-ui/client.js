@@ -36,8 +36,8 @@ const makeRegistrationRequestFrom = form => ({
 });
 
 const makeRequestHeaders = form => ({
-        'x-mfa-key': form.apiKey.value,
-        'x-mfa-secret': form.apiSecret.value,
+        'x-mfa-apikey': form.apiKey.value,
+        'x-mfa-apisecret': form.apiSecret.value,
         'x-mfa-RPDisplayName': "Demo Site",
         'x-mfa-RPID': window.psl.parse(window.location.hostname).domain,
         'x-mfa-RPOrigin': "https://"+window.psl.parse(window.location.hostname).subdomain + "." + window.psl.parse(window.location.hostname).domain,
@@ -125,19 +125,24 @@ const createWebauthnAuthentication = (apiBaseUrl, apiKey, apiSecret, form) => {
 };
 
 const createWebauthnRegistration = (apiBaseUrl, apiKey, apiSecret, registrationRequest, form) => {
+    let heads = makeRequestHeaders(form)
+    heads["x-mfa-UserUUID"] = ""
     fetch(apiBaseUrl, {
         method: 'POST',
-        headers: makeRequestHeaders(form),
+        headers: heads,
         body: JSON.stringify(registrationRequest)
     }).then(
         rejectIfNotOk
     ).then(
         response => response.json()
     ).then(
-        options => SimpleWebAuthnBrowser.startRegistration({
-            excludeCredentials: [],
-            ...options.publicKey,
-        })
+        options => {
+            form.userId.value = options.uuid
+            return SimpleWebAuthnBrowser.startRegistration({
+                excludeCredentials: [],
+                ...options.publicKey,
+            })
+        }
     ).then(
         registrationCredential => sendWebauthnRegistrationToServer(
             apiBaseUrl,

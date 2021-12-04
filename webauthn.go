@@ -10,7 +10,9 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
+	uuid "github.com/satori/go.uuid"
 )
 
 // ApiMeta holds metadata about the calling service for use in WebAuthn responses.
@@ -27,10 +29,21 @@ type ApiMeta struct {
 	UserIcon        string `json:"UserIcon"`
 }
 
+// registrationResponse adds uuid to response for consumers that depend on this api to generate the uuid
+type registrationResponse struct {
+	UUID string `json:"uuid"`
+	protocol.CredentialCreation
+}
+
 func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
+	}
+
+	// If user.id is empty, treat as new user/registration
+	if user.ID == "" {
+		user.ID = uuid.NewV4().String()
 	}
 
 	options, err := user.BeginRegistration()
@@ -39,7 +52,12 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonResponse(w, options, http.StatusOK)
+	response := registrationResponse{
+		user.ID,
+		*options,
+	}
+
+	jsonResponse(w, response, http.StatusOK)
 }
 
 func FinishRegistration(w http.ResponseWriter, r *http.Request) {
@@ -164,10 +182,6 @@ func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 		msg := "missing required header: x-mfa-RPOrigin"
 		return ApiMeta{}, fmt.Errorf(msg)
 	}
-	if meta.UserUUID == "" {
-		msg := "missing required header: x-mfa-UserUUID"
-		return ApiMeta{}, fmt.Errorf(msg)
-	}
 	if meta.Username == "" {
 		msg := "missing required header: x-mfa-Username"
 		return ApiMeta{}, fmt.Errorf(msg)
@@ -232,7 +246,9 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 	// apiMeta includes info about the user and webauthn config
 	apiMeta, err := getApiMetaFromRequest(r)
 	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve api meta information from request: %s", err.Error())
+		msg := fmt.Sprintf("unable to retrieve api meta information from request: %s", err.Error())
+		log.Println(msg)
+		return nil, fmt.Errorf(msg)
 	}
 
 	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)

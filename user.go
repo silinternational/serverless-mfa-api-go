@@ -60,7 +60,7 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 		ApiKey:         apiKey,
 		APIKeyValue:    apiKey.Key,
 	}
-	
+
 	if u.ID == "" {
 		return u
 	}
@@ -193,33 +193,35 @@ func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
 	return options, nil
 }
 
-func (u *DynamoUser) FinishRegistration(r *http.Request) error {
+func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return fmt.Errorf("failed to get api config from request: %w", err)
+		return "", fmt.Errorf("failed to get api config from request: %w", err)
 	}
 
 	br, err := fixEncoding(body)
 	if err != nil {
-		return fmt.Errorf("unable to fix encoding`: %w", err)
+		return "", fmt.Errorf("unable to fix encoding`: %w", err)
 	}
 
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
-		return fmt.Errorf("unable to parese credential creation response body`: %w", err)
+		return "", fmt.Errorf("unable to parese credential creation response body`: %w", err)
 	}
 
 	credential, err := u.WebAuthnClient.CreateCredential(u, u.SessionData, parsedResponse)
 	if err != nil {
-		return fmt.Errorf("unable to create credential`: %w", err)
+		return "", fmt.Errorf("unable to create credential`: %w", err)
 	}
 
 	err = u.saveNewCredential(*credential)
 	if err != nil {
-		return fmt.Errorf("unable to save new credential`: %w", err)
+		return "", fmt.Errorf("unable to save new credential`: %w", err)
 	}
 
-	return u.unsetSessionData()
+	keyHandleHash := sha256.Sum256(credential.ID)
+
+	return string(keyHandleHash[:]), u.unsetSessionData()
 }
 
 func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {

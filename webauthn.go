@@ -29,10 +29,14 @@ type ApiMeta struct {
 	UserIcon        string `json:"UserIcon"`
 }
 
-// registrationResponse adds uuid to response for consumers that depend on this api to generate the uuid
-type registrationResponse struct {
+// beginRegistrationResponse adds uuid to response for consumers that depend on this api to generate the uuid
+type beginRegistrationResponse struct {
 	UUID string `json:"uuid"`
 	protocol.CredentialCreation
+}
+
+type finishRegistrationResponse struct {
+	KeyHandleHash string `json:"key_handle_hash"`
 }
 
 func BeginRegistration(w http.ResponseWriter, r *http.Request) {
@@ -52,7 +56,7 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response := registrationResponse{
+	response := beginRegistrationResponse{
 		user.ID,
 		*options,
 	}
@@ -67,13 +71,17 @@ func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = user.FinishRegistration(r)
+	keyHandleHash, err := user.FinishRegistration(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		return
 	}
 
-	jsonResponse(w, "Registration Success", http.StatusOK) // Handle next steps
+	response := finishRegistrationResponse{
+		KeyHandleHash: keyHandleHash,
+	}
+
+	jsonResponse(w, response, http.StatusOK) // Handle next steps
 }
 
 func BeginLogin(w http.ResponseWriter, r *http.Request) {

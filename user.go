@@ -219,9 +219,9 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 		return "", fmt.Errorf("unable to save new credential`: %w", err)
 	}
 
-	keyHandleHash := sha256.Sum256(credential.ID)
+	keyHandleHash := hashAndEncodeKeyHandle(credential.ID)
 
-	return string(keyHandleHash[:]), u.unsetSessionData()
+	return keyHandleHash, u.unsetSessionData()
 }
 
 func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
@@ -398,4 +398,9 @@ func isNullByteSlice(slice []byte) bool {
 		return true
 	}
 	return false
+}
+
+func hashAndEncodeKeyHandle(id []byte) string {
+	hash := sha256.Sum256(id)
+	return base64.RawURLEncoding.EncodeToString(hash[:])
 }

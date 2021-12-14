@@ -45,7 +45,7 @@ func TestApiKey_IsCorrect(t *testing.T) {
 	}
 }
 
-// TestApiKey_Hash - test that hashed secret can ve verified
+// TestApiKey_Hash - test that hashed secret can be verified
 func TestApiKey_Hash(t *testing.T) {
 	tests := []struct {
 		name    string

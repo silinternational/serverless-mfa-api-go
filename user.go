@@ -203,11 +203,7 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 		return "", fmt.Errorf("failed to get api config from request: %w", err)
 	}
 
-	br, err := fixEncoding(body)
-	if err != nil {
-		return "", fmt.Errorf("unable to fix encoding`: %w", err)
-	}
-
+	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
 		return "", fmt.Errorf("unable to parese credential creation response body`: %w", err)
@@ -259,12 +255,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		return &webauthn.Credential{}, fmt.Errorf("failed to read request bodyt: %s", err)
 	}
 
-	br, err := fixEncoding(body)
-	if err != nil {
-		log.Printf("failed to fix encoding in finish login: %s", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to fix encoding in finish login: %s", err)
-	}
-
+	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialRequestResponseBody(br)
 	if err != nil {
 		log.Printf("failed to parse credential request response body: %s", err)

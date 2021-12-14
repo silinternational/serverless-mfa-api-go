@@ -9,6 +9,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kelseyhightower/envconfig"
+
 	mfa "github.com/silinternational/serverless-mfa-api-go"
 )
 
@@ -67,6 +68,12 @@ var routes = []route{
 		"PUT",
 		"/webauthn/login",
 		mfa.FinishLogin,
+	},
+	{
+		"DeleteUser",
+		"DELETE",
+		"/webauthn/user",
+		mfa.DeleteUser,
 	},
 }
 

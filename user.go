@@ -179,6 +179,10 @@ func (u *DynamoUser) Load() error {
 	return nil
 }
 
+func (u *DynamoUser) Delete() error {
+	return u.Store.Delete(envConfig.WebauthnTable, WebAuthnTablePK, u.ID)
+}
+
 func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
 	options, sessionData, err := u.WebAuthnClient.BeginRegistration(u)
 	if err != nil {

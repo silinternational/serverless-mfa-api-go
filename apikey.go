@@ -131,7 +131,7 @@ func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
 	// on :, then decode first part as iv and second as encrypted content
 	parts := bytes.Split(ciphertext, []byte(":"))
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("ciphertext contains more than one colon, does not look like legacy data")
+		return nil, fmt.Errorf("ciphertext does not look like legacy data")
 	}
 
 	iv := make([]byte, aes.BlockSize)

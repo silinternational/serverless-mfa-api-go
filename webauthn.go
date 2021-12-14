@@ -124,6 +124,21 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, resp, http.StatusOK)
 }
 
+func DeleteUser(w http.ResponseWriter, r *http.Request) {
+	user, err := getUserFromContext(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusBadRequest)
+		log.Printf("error getting user from context: %s\n", err)
+		return
+	}
+
+	if err := user.Delete(); err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
+		log.Printf("error deleting user: %s", err)
+		return
+	}
+}
+
 func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	jBody, err := json.Marshal(body)
 	if err != nil {

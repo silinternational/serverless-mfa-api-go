@@ -76,8 +76,7 @@ func (s *Storage) Load(table, attrName, attrVal string, item interface{}) error 
 		return err
 	}
 
-	err = dynamodbattribute.UnmarshalMap(result.Item, item)
-	return err
+	return dynamodbattribute.UnmarshalMap(result.Item, item)
 }
 
 // Delete deletes key.

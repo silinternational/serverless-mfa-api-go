@@ -67,6 +67,8 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		mfa.BeginRegistration(w, r)
 	case "put /webauthn/register":
 		mfa.FinishRegistration(w, r)
+	case "delete /webauthn/user":
+		mfa.DeleteUser(w, r)
 	default:
 		return clientError(http.StatusNotFound, fmt.Sprintf("The requested route is not supported: %s", route))
 	}

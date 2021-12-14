@@ -249,8 +249,6 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 		return nil, err
 	}
 
-	//options.Response.RelyingPartyID = ""
-
 	return options, nil
 }
 

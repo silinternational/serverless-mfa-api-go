@@ -1,0 +1,15 @@
+- name: test
+  service: test
+  command: "true"
+#  command: go test ./...
+#  disabled tests due to issue on Codeship resolving dynamo container
+
+- name: deploy
+  service: app
+  tag: ^(main|develop)
+  command: ./lambda/deploy.sh
+
+- name: track_deployment
+  service: tracker
+  tag: ^(main|develop)
+  command: "true"

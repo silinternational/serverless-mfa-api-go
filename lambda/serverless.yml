@@ -1,0 +1,50 @@
+# For full config options, check the docs:
+#    docs.serverless.com
+
+service: twosv-api
+
+# You can pin your service to only deploy with a specific Serverless version
+# Check out our docs for more details
+# frameworkVersion: "=X.X.X"
+
+provider:
+  name: aws
+  runtime: go1.x
+  timeout: 5 # API Gateway invoked functions are limited to 30 seconds
+  versionFunctions: false
+  logRetentionInDays: 14
+  apiGateway:
+    shouldStartNameWithService: true
+
+  # you can define service wide environment variables here
+  environment:
+    stage: ${self:custom.stage}
+    namespace: ${self:custom.namespace}
+    API_KEY_TABLE: ${env:API_KEY_TABLE, "api-key"}
+    WEBAUTHN_TABLE: ${env:WEBAUTHN_TABLE, "webauthn"}
+
+  stackTags:
+    app: ${self:service}
+    app_name: ${self:service}
+    app_env: ${opt:stage, self:provider.stage}
+
+  iam:
+    role: ${env:LAMBDA_ROLE}
+
+custom:
+  stage: ${opt:stage, self:provider.stage}
+  namespace: ${self:service}_${self:custom.stage}
+
+package:
+  exclude:
+    - ./**
+  include:
+    - bin/**
+
+functions:
+  webauthn:
+    handler: bin/webauthn
+    events:
+      - http:
+          path: '{webauthn+}'
+          method: any

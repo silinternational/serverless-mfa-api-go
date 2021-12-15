@@ -1,7 +1,10 @@
-.env
+local.env
 *.env
 *.aes
 .cert/
 .idea/
 bin/
 tmp/
+local_test.go
+local_data.sh
+lambda/terraform/.terraform/

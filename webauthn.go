@@ -137,6 +137,8 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 		log.Printf("error deleting user: %s", err)
 		return
 	}
+
+	jsonResponse(w, nil, http.StatusNoContent)
 }
 
 type simpleError struct {
@@ -156,12 +158,16 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 		data = body
 	}
 
-	jBody, err := json.Marshal(data)
-	if err != nil {
-		log.Printf("failed to marshal response body to json: %s\n", err.Error())
-		w.WriteHeader(http.StatusInternalServerError)
-		_, _ = w.Write([]byte("failed to marshal response body to json"))
-		return
+	jBody := []byte{}
+	var err error
+	if data != nil {
+		jBody, err = json.Marshal(data)
+		if err != nil {
+			log.Printf("failed to marshal response body to json: %s\n", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("failed to marshal response body to json"))
+			return
+		}
 	}
 
 	w.Header().Set("content-type", "application/json")

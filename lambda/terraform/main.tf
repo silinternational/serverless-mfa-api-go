@@ -2,7 +2,7 @@
 // Create IAM user with permissions to create lambda function, API gateway, etc.
 module "serverless-user" {
   source             = "silinternational/serverless-user/aws"
-  version            = "0.0.11"
+  version            = "0.1.0"
   app_name           = "${var.app_name}-${var.app_env}"
   aws_region         = var.aws_region
   enable_api_gateway = true

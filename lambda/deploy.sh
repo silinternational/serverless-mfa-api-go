@@ -39,7 +39,7 @@ curl -sL https://deb.nodesource.com/setup_16.x | bash -
 apt-get update \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
-npm install -g serverless
+npm install -g serverless@3
 
 # deploy serverless package
-serverless deploy -v --stage $STAGE
+serverless deploy --verbose --stage $STAGE

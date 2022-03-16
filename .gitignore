@@ -4,15 +4,21 @@
 # golang output binary directory
 bin
 
-# local creds and stuff
+# credentials and other env files
 aws.env
 *.aes
 local.env
 .env
 .cert/
+
+# dev tools metadata
 .idea/
+
 tmp/
 local_test.go
 local_data.sh
+
 # Terraform
 .terraform/
+main_override.tf
+remote-tfc.tf

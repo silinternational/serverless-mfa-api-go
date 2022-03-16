@@ -1,10 +1,15 @@
-local.env
-*.env
+# Serverless directories
+.serverless
+
+# golang output binary directory
+bin
 *.aes
+local.env
+.env
 .cert/
 .idea/
-bin/
 tmp/
 local_test.go
 local_data.sh
-lambda/terraform/.terraform/
+# Terraform
+.terraform/

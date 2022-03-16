@@ -24,7 +24,7 @@ services:
   app:
     build: .
     volumes:
-      - ./:/mfa
+      - ./:/src
     ports:
       - 8080
     environment:
@@ -37,7 +37,7 @@ services:
       WEBAUTHN_TABLE: WebAuthn
     depends_on:
       - dynamo
-    working_dir: /mfa
+    working_dir: /src
 
   ui:
     image: httpd:alpine
@@ -45,3 +45,11 @@ services:
       - ./demo-ui:/usr/local/apache2/htdocs
     ports:
       - 80
+
+  sls:
+    build: .
+    env_file:
+      - local.env
+    volumes:
+      - .:/src
+    command: ["bash"]

@@ -6,11 +6,9 @@ set -e
 # Echo out all commands for monitoring progress
 set -x
 
-SCRIPTPATH="$( cd -- "$(dirname "$0")" >/dev/null 2>&1 ; pwd -P )"
-cd $SCRIPTPATH
-
-# Build the binaries
-go build -ldflags="-s -w" -o ./bin/webauthn .
+# Build binaries
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+"$DIR"/build.sh
 
 # export appropriate env vars
 if [ "${CI_BRANCH}" == "develop" ];
@@ -38,12 +36,8 @@ else
     exit 1
 fi
 
-# Install Node and Serverless
-curl -sL https://deb.nodesource.com/setup_16.x | bash -
-apt-get update \
-    && apt-get install -y nodejs \
-    && rm -rf /var/lib/apt/lists/*
-npm install -g serverless@3
+# Print the Serverless version in the logs
+serverless --version
 
-# deploy serverless package
-serverless deploy --verbose --stage $STAGE
+echo "Deploying stage $STAGE of serverless package..."
+serverless deploy --verbose --stage "$STAGE"

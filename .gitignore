@@ -3,6 +3,9 @@
 
 # golang output binary directory
 bin
+
+# local creds and stuff
+aws.env
 *.aes
 local.env
 .env

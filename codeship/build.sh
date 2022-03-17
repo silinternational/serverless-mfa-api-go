@@ -7,4 +7,4 @@ set -e
 set -x
 
 # Build the binaries
-go build -ldflags="-s -w" -o bin/webauthn .
+go build -ldflags="-s -w" -o bin/webauthn ./lambda

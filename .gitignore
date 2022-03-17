@@ -1,10 +1,24 @@
-local.env
-*.env
+# Serverless directories
+.serverless
+
+# golang output binary directory
+bin
+
+# credentials and other env files
+aws.env
 *.aes
+local.env
+.env
 .cert/
+
+# dev tools metadata
 .idea/
-bin/
+
 tmp/
 local_test.go
 local_data.sh
-lambda/terraform/.terraform/
+
+# Terraform
+.terraform/
+main_override.tf
+remote-tfc.tf

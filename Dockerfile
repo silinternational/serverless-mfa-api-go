@@ -1,11 +1,14 @@
-FROM golang:latest
+FROM golang:1.18
 
-WORKDIR /mfa
+RUN curl -o- -L https://slss.io/install | VERSION=3.7.5 bash && \
+  mv $HOME/.serverless/bin/serverless /usr/local/bin && \
+  ln -s /usr/local/bin/serverless /usr/local/bin/sls
+
+WORKDIR /src
 
 RUN curl -sSfL https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | sh -s -- -b $(go env GOPATH)/bin
 
-ADD . .
-ENV GO11MODULE=on
+COPY ./ .
 RUN go get ./...
 
 EXPOSE 8080

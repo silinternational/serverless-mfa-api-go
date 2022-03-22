@@ -1,1 +1,9 @@
 .cert/
+demo-ui/
+terraform/
+aws.env
+Dockerfile
+docker-compose.yml
+local.env.example
+Makefile
+README.md

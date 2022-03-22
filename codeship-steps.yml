@@ -1,13 +1,11 @@
 - name: test
   service: test
-  command: "true"
-#  command: go test ./...
-#  disabled tests due to issue on Codeship resolving dynamo container
+  command: ./codeship/test.sh
 
 - name: deploy
   service: app
   tag: ^(main|develop)
-  command: ./lambda/deploy.sh
+  command: ./codeship/deploy.sh
 
 - name: track_deployment
   service: tracker

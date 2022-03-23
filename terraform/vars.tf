@@ -9,9 +9,9 @@ variable "app_env" {
   description = "Environment name, ex: prod, stage, dev"
 }
 
-variable "aws_access_key" {
+variable "aws_access_key_id" {
   type        = string
-  description = "Access Key ID for serverless framework user"
+  description = "Access Key ID for user with permissions to create resources for serverless framework"
 }
 
 variable "aws_account_id" {
@@ -24,9 +24,9 @@ variable "aws_region" {
   description = "A valid AWS region where this lambda will be deployed"
 }
 
-variable "aws_secret_key" {
+variable "aws_secret_access_key" {
   type        = string
-  description = "Secret access Key ID for serverless framework user"
+  description = "Secret access Key ID for user with permissions to create resources for serverless framework"
 }
 
 variable "extra_policies" {

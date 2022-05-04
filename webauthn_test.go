@@ -79,6 +79,14 @@ func testEnvConfig(awsConfig aws.Config) EnvConfig {
 	return envCfg
 }
 
+func formatDynamoResults(results interface{}) string {
+	resultsStr := fmt.Sprintf("%+v", results)
+	resultsStr = strings.Replace(resultsStr, "  ", "", -1)
+	resultsStr = strings.Replace(resultsStr, "\n", "", -1)
+
+	return resultsStr
+}
+
 func Test_BeginRegistration(t *testing.T) {
 	assert := require.New(t)
 
@@ -140,11 +148,11 @@ func Test_BeginRegistration(t *testing.T) {
 		APIKeyValue:    apiKey.Key,
 	}
 
-	reqWithUser := http.Request{}
-	ctxWithUser := context.WithValue(reqWithUser.Context(), UserContextKey, &testUser)
-	reqWithUser = *reqWithUser.WithContext(ctxWithUser)
+	reqWithUserID := http.Request{}
+	ctxWithUserID := context.WithValue(reqWithUserID.Context(), UserContextKey, &testUser)
+	reqWithUserID = *reqWithUserID.WithContext(ctxWithUserID)
 
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUser)
+	localStorage.Store(envConfig.WebauthnTable, ctxWithUserID)
 
 	tests := []struct {
 		name               string
@@ -181,7 +189,7 @@ func Test_BeginRegistration(t *testing.T) {
 		{
 			name:       "user has an id",
 			httpWriter: newLambdaResponseWriter(),
-			httpReq:    reqWithUser,
+			httpReq:    reqWithUserID,
 			wantBodyContains: []string{
 				`"uuid":"` + userID,
 				`"id":"111.11.11.11"`,
@@ -218,9 +226,7 @@ func Test_BeginRegistration(t *testing.T) {
 			assert.NoError(err, "failed to scan storage for results")
 
 			// remove extra spaces and line endings
-			resultsStr := fmt.Sprintf("%+v", results)
-			resultsStr = strings.Replace(resultsStr, "  ", "", -1)
-			resultsStr = strings.Replace(resultsStr, "\n", "", -1)
+			resultsStr := formatDynamoResults(results)
 
 			for _, w := range tt.wantDynamoContains {
 				assert.Contains(resultsStr, w)
@@ -363,9 +369,7 @@ func Test_BeginLogin(t *testing.T) {
 			assert.NoError(err, "failed to scan storage for results")
 
 			// remove extra spaces and line endings
-			resultsStr := fmt.Sprintf("%+v", results)
-			resultsStr = strings.Replace(resultsStr, "  ", "", -1)
-			resultsStr = strings.Replace(resultsStr, "\n", "", -1)
+			resultsStr := formatDynamoResults(results)
 
 			for _, w := range tt.wantDynamoContains {
 				assert.Contains(resultsStr, w)

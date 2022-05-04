@@ -3,11 +3,14 @@ package mfa
 import (
 	"context"
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/stretchr/testify/require"
@@ -54,20 +57,15 @@ func Test_Parse(t *testing.T) {
 	}
 }
 
-func Test_BeginLogin(t *testing.T) {
-	assert := require.New(t)
-
-	err := initDb()
-	if err != nil {
-		t.Error(err)
-		return
-	}
-	awsConfig := aws.Config{
+func testAwsConfig() aws.Config {
+	return aws.Config{
 		Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
 		Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
 		DisableSSL: aws.Bool(true),
 	}
+}
 
+func testEnvConfig(awsConfig aws.Config) EnvConfig {
 	envCfg := EnvConfig{
 		ApiKeyTable:      "api_keys",
 		WebauthnTable:    "WebAuthn",
@@ -78,16 +76,33 @@ func Test_BeginLogin(t *testing.T) {
 	}
 
 	SetConfig(envCfg)
+	return envCfg
+}
+
+func Test_BeginRegistration(t *testing.T) {
+	assert := require.New(t)
+
+	// Needed for the envCfg and the storage
+	awsConfig := testAwsConfig()
+
+	// Needed for storage
+	envCfg := testEnvConfig(awsConfig)
 
 	localStorage, err := NewStorage(&awsConfig)
 	assert.NoError(err, "failed creating local storage for test")
 
-	aKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
-	aSec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
+	err = initDb(nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
+	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
 
 	apiKey := ApiKey{
-		Key:    aKey,
-		Secret: aSec,
+		Key:    apiKeyKey,
+		Secret: apiKeySec,
 		Store:  localStorage,
 	}
 
@@ -99,6 +114,157 @@ func Test_BeginLogin(t *testing.T) {
 
 	assert.NoError(err, "failed creating new webAuthnClient for test")
 
+	userID := "12345678-1234-1234-1234-123456789012"
+	userIDEncoded := base64.StdEncoding.EncodeToString([]byte(userID))
+
+	userNoID := DynamoUser{
+		Name:           "Nelly_NoID",
+		DisplayName:    "Nelly NoID",
+		Store:          localStorage,
+		WebAuthnClient: web,
+		ApiKey:         apiKey,
+		APIKeyValue:    apiKey.Key,
+	}
+
+	reqNoID := http.Request{}
+	ctxNoID := context.WithValue(reqNoID.Context(), UserContextKey, &userNoID)
+	reqNoID = *reqNoID.WithContext(ctxNoID)
+
+	testUser := DynamoUser{
+		ID:             userID,
+		Name:           "Charlie_HasCredentials",
+		DisplayName:    "Charlie HasCredentials",
+		Store:          localStorage,
+		WebAuthnClient: web,
+		ApiKey:         apiKey,
+		APIKeyValue:    apiKey.Key,
+	}
+
+	reqWithUser := http.Request{}
+	ctxWithUser := context.WithValue(reqWithUser.Context(), UserContextKey, &testUser)
+	reqWithUser = *reqWithUser.WithContext(ctxWithUser)
+
+	localStorage.Store(envConfig.WebauthnTable, ctxWithUser)
+
+	tests := []struct {
+		name               string
+		httpWriter         *lambdaResponseWriter
+		httpReq            http.Request
+		wantBodyContains   []string
+		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
+	}{
+		{
+			name:       "no user",
+			httpWriter: newLambdaResponseWriter(),
+			httpReq:    http.Request{},
+			wantBodyContains: []string{
+				`"error":"unable to get user from request context"`,
+				`missing WebAuthClient in BeginRegistration`,
+			},
+		},
+		{
+			name:       "user has no id",
+			httpWriter: newLambdaResponseWriter(),
+			httpReq:    reqNoID,
+			wantBodyContains: []string{
+				`"uuid":"`,
+				`"id":"111.11.11.11"`,
+				`"name":"TestRPName"`,
+				`"publicKey":{`,
+			},
+			wantDynamoContains: []string{
+				`{Count: 1`,
+				`EncryptedSessionData: {B: <binary> len 158}`,
+				`apiKey: {S: "` + apiKeyKey,
+			},
+		},
+		{
+			name:       "user has an id",
+			httpWriter: newLambdaResponseWriter(),
+			httpReq:    reqWithUser,
+			wantBodyContains: []string{
+				`"uuid":"` + userID,
+				`"id":"111.11.11.11"`,
+				`"name":"TestRPName"`,
+				`"publicKey":{`,
+				`"id":"` + string(userIDEncoded),
+			},
+			wantDynamoContains: []string{
+				`{Count: 2`,
+				`uuid: {S: "` + userID,
+				`EncryptedSessionData: {B: <binary> len 158}`,
+				`apiKey: {S: "` + apiKeyKey,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			BeginRegistration(tt.httpWriter, &tt.httpReq)
+
+			gotBody := string(tt.httpWriter.Body)
+			for _, w := range tt.wantBodyContains {
+				assert.Contains(gotBody, w)
+			}
+
+			if len(tt.wantDynamoContains) == 0 {
+				return
+			}
+
+			params := &dynamodb.ScanInput{
+				TableName: aws.String(envCfg.WebauthnTable),
+			}
+
+			results, err := localStorage.client.Scan(params)
+			assert.NoError(err, "failed to scan storage for results")
+
+			// remove extra spaces and line endings
+			resultsStr := fmt.Sprintf("%+v", results)
+			resultsStr = strings.Replace(resultsStr, "  ", "", -1)
+			resultsStr = strings.Replace(resultsStr, "\n", "", -1)
+
+			for _, w := range tt.wantDynamoContains {
+				assert.Contains(resultsStr, w)
+			}
+		})
+	}
+}
+
+func Test_BeginLogin(t *testing.T) {
+	assert := require.New(t)
+
+	// Needed for the envCfg and the storage
+	awsConfig := testAwsConfig()
+
+	// Needed for storage
+	envCfg := testEnvConfig(awsConfig)
+
+	localStorage, err := NewStorage(&awsConfig)
+	assert.NoError(err, "failed creating local storage for test")
+
+	err = initDb(nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
+	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
+
+	apiKey := ApiKey{
+		Key:    apiKeyKey,
+		Secret: apiKeySec,
+		Store:  localStorage,
+	}
+
+	web, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "TestRPName",   // Display Name for your site
+		RPID:          "111.11.11.11", // Generally the FQDN for your site
+		Debug:         true,
+	})
+
+	assert.NoError(err, "failed creating new webAuthnClient for test")
+
+	// Just check one of the error conditions with this user
 	userNoCreds := DynamoUser{
 		ID:             "",
 		Name:           "Nelly_NoCredentials",
@@ -130,21 +296,22 @@ func Test_BeginLogin(t *testing.T) {
 		Credentials:    creds,
 	}
 
-	reqWithUserNoCredentials := http.Request{}
-	ctxWithUser := context.WithValue(reqWithUserNoCredentials.Context(), UserContextKey, &userNoCreds)
-	reqWithUserNoCredentials = *reqWithUserNoCredentials.WithContext(ctxWithUser)
+	reqNoCredentials := http.Request{}
+	ctxWithUser := context.WithValue(reqNoCredentials.Context(), UserContextKey, &userNoCreds)
+	reqNoCredentials = *reqNoCredentials.WithContext(ctxWithUser)
 
-	reqWithUserCredentials := http.Request{}
-	ctxWithUserCredentials := context.WithValue(reqWithUserCredentials.Context(), UserContextKey, &userWithCreds)
-	reqWithUserCredentials = *reqWithUserCredentials.WithContext(ctxWithUserCredentials)
+	reqWithCredentials := http.Request{}
+	ctxWithUserCredentials := context.WithValue(reqWithCredentials.Context(), UserContextKey, &userWithCreds)
+	reqWithCredentials = *reqWithCredentials.WithContext(ctxWithUserCredentials)
 
 	localStorage.Store(envConfig.WebauthnTable, ctxWithUserCredentials)
 
 	tests := []struct {
-		name             string
-		httpWriter       *lambdaResponseWriter
-		httpReq          http.Request
-		wantBodyContains []string
+		name               string
+		httpWriter         *lambdaResponseWriter
+		httpReq            http.Request
+		wantBodyContains   []string
+		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
 	}{
 		{
 			name:             "no user",
@@ -155,17 +322,23 @@ func Test_BeginLogin(t *testing.T) {
 		{
 			name:             "has a user but no credentials",
 			httpWriter:       newLambdaResponseWriter(),
-			httpReq:          reqWithUserNoCredentials,
+			httpReq:          reqNoCredentials,
 			wantBodyContains: []string{`"error":"Found no credentials for user"`},
 		},
 		{
 			name:       "has a user with credentials",
 			httpWriter: newLambdaResponseWriter(),
-			httpReq:    reqWithUserCredentials,
+			httpReq:    reqWithCredentials,
 			wantBodyContains: []string{
 				`"rpId":"111.11.11.11"`,
 				`{"publicKey":{"challenge":`,
 				`"id":"` + string(userIDEncoded),
+			},
+			wantDynamoContains: []string{
+				`{Count: 1`,
+				`uuid: {S: "` + userID,
+				`EncryptedSessionData: {B: <binary> len 244}`,
+				`apiKey: {S: "` + apiKeyKey,
 			},
 		},
 	}
@@ -176,6 +349,26 @@ func Test_BeginLogin(t *testing.T) {
 			gotBody := string(tt.httpWriter.Body)
 			for _, w := range tt.wantBodyContains {
 				assert.Contains(gotBody, w)
+			}
+
+			if len(tt.wantDynamoContains) == 0 {
+				return
+			}
+
+			params := &dynamodb.ScanInput{
+				TableName: aws.String(envCfg.WebauthnTable),
+			}
+
+			results, err := localStorage.client.Scan(params)
+			assert.NoError(err, "failed to scan storage for results")
+
+			// remove extra spaces and line endings
+			resultsStr := fmt.Sprintf("%+v", results)
+			resultsStr = strings.Replace(resultsStr, "  ", "", -1)
+			resultsStr = strings.Replace(resultsStr, "\n", "", -1)
+
+			for _, w := range tt.wantDynamoContains {
+				assert.Contains(resultsStr, w)
 			}
 		})
 	}

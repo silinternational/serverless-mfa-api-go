@@ -13,14 +13,17 @@ import (
 const TestTableName = "WebAuthn"
 const DisableSSL = true
 
-func initDb() error {
-	storage, err := NewStorage(&aws.Config{
-		Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
-		Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
-		DisableSSL: aws.Bool(true),
-	})
-	if err != nil {
-		return err
+func initDb(storage *Storage) error {
+	var err error
+	if storage == nil {
+		storage, err = NewStorage(&aws.Config{
+			Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
+			Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
+			DisableSSL: aws.Bool(true),
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	// attempt to delete tables in case already exists
@@ -75,7 +78,7 @@ func initDb() error {
 }
 
 func TestStorage_StoreLoad(t *testing.T) {
-	err := initDb()
+	err := initDb(nil)
 	if err != nil {
 		t.Error(err)
 		return

@@ -184,11 +184,16 @@ func (u *DynamoUser) Delete() error {
 }
 
 func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
+	if u.WebAuthnClient == nil {
+		return nil, fmt.Errorf("dynamoUser, %s, missing WebAuthClient in BeginRegistration", u.Name)
+	}
+
 	rrk := false
 	authSelection := protocol.AuthenticatorSelection{
 		RequireResidentKey: &rrk,
 		UserVerification:   protocol.VerificationDiscouraged,
 	}
+
 	options, sessionData, err := u.WebAuthnClient.BeginRegistration(u, webauthn.WithAuthenticatorSelection(authSelection))
 	if err != nil {
 		return &protocol.CredentialCreation{}, fmt.Errorf("failed to begin registration: %w", err)

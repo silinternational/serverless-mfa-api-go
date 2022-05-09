@@ -208,6 +208,10 @@ func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
 }
 
 func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
+	if r.Body == nil {
+		return "", fmt.Errorf("request Body may not be nil in FinishRegistration")
+	}
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to get api config from request: %w", err)
@@ -216,12 +220,12 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
-		return "", fmt.Errorf("unable to parese credential creation response body`: %w", err)
+		return "", fmt.Errorf("unable to parse credential creation response body: %w", err)
 	}
 
 	credential, err := u.WebAuthnClient.CreateCredential(u, u.SessionData, parsedResponse)
 	if err != nil {
-		return "", fmt.Errorf("unable to create credential`: %w", err)
+		return "", fmt.Errorf("unable to create credential: %w", err)
 	}
 
 	err = u.saveNewCredential(*credential)

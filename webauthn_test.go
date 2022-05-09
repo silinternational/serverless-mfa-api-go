@@ -1,9 +1,11 @@
 package mfa
 
 import (
+	"bytes"
 	"context"
 	"encoding/base64"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"strings"
@@ -15,6 +17,31 @@ import (
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/stretchr/testify/require"
 )
+
+// These come from https://github.com/duo-labs/webauthn/blob/23776d77aa561cf1d5cf9f10a65daab336a1d399/protocol/assertion_test.go
+const (
+	testAssertID                = "AI7D5q2P0LS-Fal9ZT7CHM2N5BLbUunF92T8b6iYC199bO2kagSuU05-5dZGqb1SP0A0lyTWng"
+	testAssertAuthenticatorData = "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvBFXJJiGa3OAAI1vMYKZIsLJfHwVQMANwCOw-atj9C0vhWpfWU-whzNjeQS21Lpxfdk_G-omAtffWztpGoErlNOfuXWRqm9Uj9ANJck1p6lAQIDJiABIVggKAhfsdHcBIc0KPgAcRyAIK_-Vi-nCXHkRHPNaCMBZ-4iWCBxB8fGYQSBONi9uvq0gv95dGWlhJrBwCsj_a4LJQKVHQ"
+	testAssertSignature         = "MEUCIBtIVOQxzFYdyWQyxaLR0tik1TnuPhGVhXVSNgFwLmN5AiEAnxXdCq0UeAVGWxOaFcjBZ_mEZoXqNboY5IkQDdlWZYc"
+	testAssertClientDataJSON    = "eyJjaGFsbGVuZ2UiOiJXOEd6RlU4cEdqaG9SYldyTERsYW1BZnFfeTRTMUNaRzFWdW9lUkxBUnJFIiwib3JpZ2luIjoiaHR0cHM6Ly93ZWJhdXRobi5pbyIsInR5cGUiOiJ3ZWJhdXRobi5jcmVhdGUifQ"
+	testAttestObject            = "o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVjEdKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvBBAAAAAAAAAAAAAAAAAAAAAAAAAAAAQOsa7QYSUFukFOLTmgeK6x2ktirNMgwy_6vIwwtegxI2flS1X-JAkZL5dsadg-9bEz2J7PnsbB0B08txvsyUSvKlAQIDJiABIVggLKF5xS0_BntttUIrm2Z2tgZ4uQDwllbdIfrrBMABCNciWCDHwin8Zdkr56iSIh0MrB5qZiEzYLQpEOREhMUkY6q4Vw"
+	testCredID                  = "6xrtBhJQW6QU4tOaB4rrHaS2Ks0yDDL_q8jDC16DEjZ-VLVf4kCRkvl2xp2D71sTPYns-exsHQHTy3G-zJRK8g"
+	testChallenge               = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
+	testRpId                    = "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvA"
+)
+
+const testAssertionResponse = `{
+	"id":"` + testCredID + `",
+	"rawId":"` + testCredID + `",
+	"type":"public-key",
+	"response":{
+		"authenticatorData":"` + testAssertAuthenticatorData + `",
+		"signature":"` + testAssertSignature + `",
+		"clientDataJSON":"` + testAssertClientDataJSON + `",
+		"userHandle":"0ToAAAAAAAAAAA",
+		"attestationObject":"` + testAttestObject + `"
+		}
+	}`
 
 type lambdaResponseWriter struct {
 	Body    []byte
@@ -208,6 +235,130 @@ func Test_BeginRegistration(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			BeginRegistration(tt.httpWriter, &tt.httpReq)
+
+			gotBody := string(tt.httpWriter.Body)
+			for _, w := range tt.wantBodyContains {
+				assert.Contains(gotBody, w)
+			}
+
+			if len(tt.wantDynamoContains) == 0 {
+				return
+			}
+
+			params := &dynamodb.ScanInput{
+				TableName: aws.String(envCfg.WebauthnTable),
+			}
+
+			results, err := localStorage.client.Scan(params)
+			assert.NoError(err, "failed to scan storage for results")
+
+			// remove extra spaces and line endings
+			resultsStr := formatDynamoResults(results)
+
+			for _, w := range tt.wantDynamoContains {
+				assert.Contains(resultsStr, w)
+			}
+		})
+	}
+}
+
+func Test_FinishRegistration(t *testing.T) {
+	assert := require.New(t)
+
+	awsConfig := testAwsConfig()
+	envCfg := testEnvConfig(awsConfig)
+
+	localStorage, err := NewStorage(&awsConfig)
+	assert.NoError(err, "failed creating local storage for test")
+
+	err = initDb(nil)
+	if err != nil {
+		t.Error(err)
+		return
+	}
+
+	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
+	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
+
+	apiKey := ApiKey{
+		Key:    apiKeyKey,
+		Secret: apiKeySec,
+		Store:  localStorage,
+	}
+
+	web, err := webauthn.New(&webauthn.Config{
+		RPDisplayName: "TestRPName",  // Display Name for your site
+		RPID:          "webauthn.io", // Generally the FQDN for your site
+		RPOrigin:      "https://webauthn.io",
+		Debug:         true,
+	})
+
+	assert.NoError(err, "failed creating new webAuthnClient for test")
+
+	testUser := DynamoUser{
+		ID:             testCredID,
+		Name:           "Charlie_HasCredentials",
+		DisplayName:    "Charlie HasCredentials",
+		Store:          localStorage,
+		WebAuthnClient: web,
+		ApiKey:         apiKey,
+		APIKeyValue:    apiKey.Key,
+		SessionData: webauthn.SessionData{
+			UserID:    []byte(testCredID),
+			Challenge: "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE",
+		},
+	}
+
+	reqNoBody := http.Request{}
+	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
+	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
+
+	body := ioutil.NopCloser(bytes.NewReader([]byte(testAssertionResponse)))
+	reqWithBody := &http.Request{Body: body}
+	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, &testUser)
+	reqWithBody = reqWithBody.WithContext(ctxWithUser)
+
+	localStorage.Store(envConfig.WebauthnTable, ctxWithUser)
+
+	tests := []struct {
+		name               string
+		httpWriter         *lambdaResponseWriter
+		httpReq            http.Request
+		wantBodyContains   []string
+		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
+	}{
+		{
+			name:             "no user",
+			httpWriter:       newLambdaResponseWriter(),
+			httpReq:          http.Request{},
+			wantBodyContains: []string{`"error":"unable to get user from request context"`},
+		},
+		{
+			name:       "request has no body",
+			httpWriter: newLambdaResponseWriter(),
+			httpReq:    reqNoBody,
+			wantBodyContains: []string{
+				`"error":"request Body may not be nil in FinishRegistration"`,
+			},
+		},
+		{
+			name:       "all good",
+			httpWriter: newLambdaResponseWriter(),
+			httpReq:    *reqWithBody,
+			wantBodyContains: []string{
+				`{"key_handle_hash":"PKO5DP_jWkM0iqbebsWfMDb4XaMoiyI0J_LsPp7WvSk"}`,
+			},
+			wantDynamoContains: []string{
+				`{Count: 1`,
+				`uuid: {S: "` + testCredID,
+				`EncryptedCredentials: {B: <binary> len 348}`,
+				`apiKey: {S: "` + apiKeyKey,
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			FinishRegistration(tt.httpWriter, &tt.httpReq)
 
 			gotBody := string(tt.httpWriter.Body)
 			for _, w := range tt.wantBodyContains {

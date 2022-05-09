@@ -295,25 +295,8 @@ func Test_FinishRegistration(t *testing.T) {
 
 	assert.NoError(err, "failed creating new webAuthnClient for test")
 
-	userID := testCredID
-
-	userNoID := DynamoUser{
-		Name:           "Nelly_NoID",
-		DisplayName:    "Nelly NoID",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		APIKeyValue:    apiKey.Key,
-	}
-
-	reqNoBody := http.Request{}
-	ctxNoUserID := context.WithValue(reqNoBody.Context(), UserContextKey, &userNoID)
-	reqNoBody = *reqNoBody.WithContext(ctxNoUserID)
-
-	body := ioutil.NopCloser(bytes.NewReader([]byte(testAssertionResponse)))
-
 	testUser := DynamoUser{
-		ID:             userID,
+		ID:             testCredID,
 		Name:           "Charlie_HasCredentials",
 		DisplayName:    "Charlie HasCredentials",
 		Store:          localStorage,
@@ -321,16 +304,21 @@ func Test_FinishRegistration(t *testing.T) {
 		ApiKey:         apiKey,
 		APIKeyValue:    apiKey.Key,
 		SessionData: webauthn.SessionData{
-			UserID:    []byte(userID),
+			UserID:    []byte(testCredID),
 			Challenge: "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE",
 		},
 	}
 
-	reqWithUserID := &http.Request{Body: body}
-	ctxWithUserID := context.WithValue(reqWithUserID.Context(), UserContextKey, &testUser)
-	reqWithUserID = reqWithUserID.WithContext(ctxWithUserID)
+	reqNoBody := http.Request{}
+	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
+	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUserID)
+	body := ioutil.NopCloser(bytes.NewReader([]byte(testAssertionResponse)))
+	reqWithBody := &http.Request{Body: body}
+	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, &testUser)
+	reqWithBody = reqWithBody.WithContext(ctxWithUser)
+
+	localStorage.Store(envConfig.WebauthnTable, ctxWithUser)
 
 	tests := []struct {
 		name               string
@@ -354,18 +342,17 @@ func Test_FinishRegistration(t *testing.T) {
 			},
 		},
 		{
-			name:       "user has an id",
+			name:       "all good",
 			httpWriter: newLambdaResponseWriter(),
-			httpReq:    *reqWithUserID,
+			httpReq:    *reqWithBody,
 			wantBodyContains: []string{
 				`{"key_handle_hash":"PKO5DP_jWkM0iqbebsWfMDb4XaMoiyI0J_LsPp7WvSk"}`,
 			},
 			wantDynamoContains: []string{
 				`{Count: 1`,
-				`uuid: {S: "` + userID,
+				`uuid: {S: "` + testCredID,
 				`EncryptedCredentials: {B: <binary> len 348}`,
 				`apiKey: {S: "` + apiKeyKey,
-				`uuid: {S: "` + testCredID,
 			},
 		},
 	}

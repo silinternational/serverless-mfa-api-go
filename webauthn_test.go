@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -42,6 +43,31 @@ const testAssertionResponse = `{
 		"attestationObject":"` + testAttestObject + `"
 		}
 	}`
+
+func getTestAssertionResponse(credID, authData, clientData, attestationObject string) []byte {
+	return []byte(`{
+	"id":"` + credID + `",
+	"rawId":"` + credID + `",
+	"type":"public-key",
+	"response":{
+		"authenticatorData":"` + authData + `",
+		"clientDataJSON":"` + clientData + `",
+		"attestationObject":"` + attestationObject + `"
+		}
+	}`)
+}
+
+func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 string, user *DynamoUser) *http.Request {
+
+	assertResp := getTestAssertionResponse(credID1, authData1, clientData1, attestObject1)
+
+	body := ioutil.NopCloser(bytes.NewReader(assertResp))
+
+	reqWithBody := &http.Request{Body: body}
+	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
+	reqWithBody = reqWithBody.WithContext(ctxWithUser)
+	return reqWithBody
+}
 
 type lambdaResponseWriter struct {
 	Body    []byte
@@ -287,9 +313,9 @@ func Test_FinishRegistration(t *testing.T) {
 	}
 
 	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName",  // Display Name for your site
-		RPID:          "webauthn.io", // Generally the FQDN for your site
-		RPOrigin:      "https://webauthn.io",
+		RPDisplayName: "TestRPName",       // Display Name for your site
+		RPID:          "http://localhost", // Generally the FQDN for your site
+		RPOrigin:      "http://localhost",
 		Debug:         true,
 	})
 
@@ -313,12 +339,20 @@ func Test_FinishRegistration(t *testing.T) {
 	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
-	body := ioutil.NopCloser(bytes.NewReader([]byte(testAssertionResponse)))
-	reqWithBody := &http.Request{Body: body}
-	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, &testUser)
-	reqWithBody = reqWithBody.WithContext(ctxWithUser)
+	// The authData and attestObject values are emulated Yubikey values
+	const credID = "dmlydEtleTExLTA"
+	const authData1 = `pAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
+	const clientData = `eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiVzhHekZVOHBHamhvUmJXckxEbGFtQWZxX3k0UzFDWkcxVnVvZVJMQVJyRSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3QiLCJjaWRfcHVia2V5IjpudWxsfQ`
+	const attestObject1 = `pGNmbXRoZmlkby11MmZnYXR0U3RtdKJjc2lnWEcwRQIhAPjqxdYbYrUyAlBQR-nQ_tXX60AJBpgI0GQTQfL9ZseqAiBBQiDk9umctADNzsODWTHwIyajo5WCX0VbKwAyL3pcO2N4NWOBWQEnMIIBIzCByaADAgECAiEA9eyIyd78IXhUlVeZhjH5NGxU7M7pIYWn-BtckXLcusAwCgYIKoZIzj0EAwIwADAgFw0yMjAxMDEwMTAxMDFaGA8yMTIyMDEwMTAxMDEwMVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABLfOZJYdS_V15d2R8w_XCyARAie7u6nXGKjr-3RMzdmWl0zoFoxhKX1YcS_GwWwjUR5QBPeNtulvMk0lcqu4IISjEjAQMA4GA1UdDwEB_wQEAwICpDAKBggqhkjOPQQDAgNJADBGAiEA8hwCpvxu1M99SiHyyVjRh5o1Q657O92FkF4SpA8u0lsCIQDR6hcx3bI4WMCZ5O1qW7xQheuTTRIc7VHPMzF_IikwtGhBdXRoRGF0YaVkcnBpZPZlZmxhZ3MAaGF0dF9kYXRho2ZhYWd1aWT2anB1YmxpY19rZXn2bWNyZWRlbnRpYWxfaWT2aGV4dF9kYXRh9mpzaWduX2NvdW50AGhhdXRoRGF0YViNhgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3ZpcnRLZXkxMS0wpAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
 
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUser)
+	reqWithBody1 := getTestAssertionRequest(credID, authData1, clientData, attestObject1, &testUser)
+
+	const authData2 = `pAECAyYhWCBWju412vLmFsmCyJUtOhbKLUYKX_sgwxT7jZduFiLLYCJYIHfMpmFqv_yNMRCYFkHf8ZaI_PxYUa6XyWbk5BTQ_LqF`
+	const attestObject2 = `pGNmbXRoZmlkby11MmZnYXR0U3RtdKJjc2lnWEcwRQIhAIO5erw2DrPaMEg_9M-LFlQjZuflevBexyUnRByP7CwZAiAH8Di8vF6pOuGiKaCjthHZ76B5faPnN_3pNHdBRZNpYGN4NWOBWQEmMIIBIjCByaADAgECAiEBIiQiGAIuTOJjXsDxVvxMJ1tAOLHMS6Wn-BtckXLcusAwCgYIKoZIzj0EAwIwADAgFw0yMjAxMDEwMTAxMDFaGA8yMTIyMDEwMTAxMDEwMVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFaO7jXa8uYWyYLIlS06FsotRgpf-yDDFPuNl24WIstgd8ymYWq__I0xEJgWQd_xloj8_FhRrpfJZuTkFND8uoWjEjAQMA4GA1UdDwEB_wQEAwICpDAKBggqhkjOPQQDAgNIADBFAiAhir4WEzviq4QRwxXUP8w8-JIdskomJXwdDIi3lJtGLgIhAMmtVF0Ld5TDb7ETDI6p5iuIvh6KBQguekyBtC6NVZKVaEF1dGhEYXRhpWRycGlk9mVmbGFncwBoYXR0X2RhdGGjZmFhZ3VpZPZqcHVibGljX2tlefZtY3JlZGVudGlhbF9pZPZoZXh0X2RhdGH2anNpZ25fY291bnQAaGF1dGhEYXRhWI2GBbi6CMINQvnkVRUYcYltDg3pgFlihvtzbRHuwBPipEEAAAAAAAAAAAAAAAAAAAAAAAAAAAALdmlydEtleTEzLTCkAQIDJiFYIFaO7jXa8uYWyYLIlS06FsotRgpf-yDDFPuNl24WIstgIlggd8ymYWq__I0xEJgWQd_xloj8_FhRrpfJZuTkFND8uoU`
+
+	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientData, attestObject2, &testUser)
+
+	localStorage.Store(envConfig.WebauthnTable, &testUser)
 
 	tests := []struct {
 		name               string
@@ -326,6 +360,7 @@ func Test_FinishRegistration(t *testing.T) {
 		httpReq            http.Request
 		wantBodyContains   []string
 		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
+		wantCredsCount     int
 	}{
 		{
 			name:             "no user",
@@ -342,18 +377,34 @@ func Test_FinishRegistration(t *testing.T) {
 			},
 		},
 		{
-			name:       "all good",
+			name:       "all good - first u2f key",
 			httpWriter: newLambdaResponseWriter(),
-			httpReq:    *reqWithBody,
+			httpReq:    *reqWithBody1,
 			wantBodyContains: []string{
-				`{"key_handle_hash":"PKO5DP_jWkM0iqbebsWfMDb4XaMoiyI0J_LsPp7WvSk"}`,
+				`{"key_handle_hash":"g9MyqPUyL8trqvh0hQp8C3eeJfJascvinEbh6ImpVCc"}`,
 			},
 			wantDynamoContains: []string{
 				`{Count: 1`,
 				`uuid: {S: "` + testCredID,
-				`EncryptedCredentials: {B: <binary> len 348}`,
+				`EncryptedCredentials: {B: <binary>`,
 				`apiKey: {S: "` + apiKeyKey,
 			},
+			wantCredsCount: 1,
+		},
+		{
+			name:       "all good - second u2f key",
+			httpWriter: newLambdaResponseWriter(),
+			httpReq:    *reqWithBody2,
+			wantBodyContains: []string{
+				`{"key_handle_hash":"tMRpoP2iSwo3rYH6lDT_kiPEltM3zFqyzaGfNayZ8SM"}`,
+			},
+			wantDynamoContains: []string{
+				`{Count: 1`, // Still only one user, but now with 2 credentials
+				`uuid: {S: "` + testCredID,
+				`EncryptedCredentials: {B: <binary>`,
+				`apiKey: {S: "` + apiKeyKey,
+			},
+			wantCredsCount: 2,
 		},
 	}
 	for _, tt := range tests {
@@ -382,6 +433,21 @@ func Test_FinishRegistration(t *testing.T) {
 			for _, w := range tt.wantDynamoContains {
 				assert.Contains(resultsStr, w)
 			}
+			if tt.wantCredsCount < 1 {
+				return
+			}
+
+			// Ensure there are the correct number of credentials by first decoding them
+			decoded, err := testUser.ApiKey.Decrypt(results.Items[0][`EncryptedCredentials`].B)
+			assert.NoError(err, "error decrypting EncryptedCredentials")
+
+			decoded = bytes.Trim(decoded, "\x00")
+			var creds []webauthn.Credential
+			err = json.Unmarshal(decoded, &creds)
+			assert.NoError(err, "error unmarshalling user credential data")
+
+			assert.Len(creds, tt.wantCredsCount, "incorrect number of user credentials")
+
 		})
 	}
 }

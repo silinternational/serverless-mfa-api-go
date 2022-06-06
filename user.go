@@ -39,14 +39,17 @@ type DynamoUser struct {
 	EncryptedPublicKey string `json:"encryptedPublicKey,omitempty"`
 
 	// WebAuthn fields
-	SessionData          webauthn.SessionData  `json:"-"`
-	EncryptedSessionData []byte                `json:"EncryptedSessionData,omitempty"`
+	SessionData          webauthn.SessionData `json:"-"`
+	EncryptedSessionData []byte               `json:"EncryptedSessionData,omitempty"`
+
+	// These can be multiple Yubikeys or other WebAuthn entries
 	Credentials          []webauthn.Credential `json:"-"`
 	EncryptedCredentials []byte                `json:"EncryptedCredentials,omitempty"`
-	WebAuthnClient       *webauthn.WebAuthn    `json:"-"`
-	Name                 string                `json:"-"`
-	DisplayName          string                `json:"-"`
-	Icon                 string                `json:"-"`
+
+	WebAuthnClient *webauthn.WebAuthn `json:"-"`
+	Name           string             `json:"-"`
+	DisplayName    string             `json:"-"`
+	Icon           string             `json:"-"`
 }
 
 func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) DynamoUser {

@@ -339,7 +339,7 @@ func Test_FinishRegistration(t *testing.T) {
 	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
-	// The authData and attestObject values are emulated Yubikey values
+	// These are emulated Yubikey values
 	const credID = "dmlydEtleTExLTA"
 	const authData1 = `pAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
 	const clientData = `eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiVzhHekZVOHBHamhvUmJXckxEbGFtQWZxX3k0UzFDWkcxVnVvZVJMQVJyRSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3QiLCJjaWRfcHVia2V5IjpudWxsfQ`

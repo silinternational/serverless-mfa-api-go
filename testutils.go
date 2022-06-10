@@ -61,6 +61,10 @@ type dsaSignature struct {
 	R, S *big.Int
 }
 
+// GenerateAuthenticationSig appends the clientData to the authData and uses the privateKey's public Key to sign it
+//  via a sha256 hashing algorithm.
+// It returns the base64 encoded version of the marshaled version of the corresponding dsa signature {r:bigInt, s:bigInt}
+// It does not use any kind of randomized data in this process
 func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.PrivateKey) string {
 
 	clientDataHash := sha256.Sum256(clientData)
@@ -70,32 +74,20 @@ func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.Pr
 
 	var h hash.Hash
 	h = sha256.New()
-	r := big.NewInt(0)
-	s := big.NewInt(0)
 
 	h.Write(signatureData)
 
-	signhash := h.Sum(nil)
-
+	signHash := h.Sum(nil)
 	notRandomReader := strings.NewReader(bigStrNotRandom1)
-	r, s, serr := ecdsa.Sign(notRandomReader, privateKey, signhash)
-	if serr != nil {
-		panic("error signing: " + serr.Error())
-	}
 
-	signature := r.Bytes()
-	signature = append(signature, s.Bytes()...)
+	dsaSig, asnSig := getASN1Signature(notRandomReader, privateKey, signHash)
 
-	dsaSig := dsaSignature{R: r, S: s}
-
-	asnSig, err := asn1.Marshal(dsaSig)
-	if err != nil {
-		panic("Error encoding signature: " + err.Error())
-	}
+	signature := dsaSig.R.Bytes()
+	signature = append(signature, dsaSig.S.Bytes()...)
 
 	sigStr := encodeBase64(asnSig)
 
-	isVerified := ecdsa.Verify(&publicKey, signhash, r, s)
+	isVerified := ecdsa.Verify(&publicKey, signHash, dsaSig.R, dsaSig.S)
 	if !isVerified {
 		panic("start signature is not getting verified for some reason")
 	}
@@ -103,6 +95,7 @@ func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.Pr
 	return sigStr
 }
 
+// GetPrivateKey returns a newly generated ecdsa private key without using any kind of randomizing
 func GetPrivateKey() *ecdsa.PrivateKey {
 	curve := elliptic.P256()
 	notRandomReader := strings.NewReader(bigStrNotRandom1)
@@ -114,7 +107,7 @@ func GetPrivateKey() *ecdsa.PrivateKey {
 	return privateKey
 }
 
-// GetAuthDataAndPrivateKey return the bare authentication data as a string and as a byte slice
+// GetAuthDataAndPrivateKey return the authentication data as a string and as a byte slice
 //   and also returns the private key
 func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
 	// Add in the RP ID Hash (32 bytes)
@@ -167,6 +160,7 @@ func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authD
 
 }
 
+// GetPublicKeyAsBytes starts with byte(4) and appends the private key's public key's X and then Y bytes
 func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	pubKey := privateKey.PublicKey
 
@@ -177,6 +171,7 @@ func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	return buf
 }
 
+// GetAttestationObject builds an attestation object for a webauth registration.
 func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) string {
 	bigNumStr := "123456789012345678901234567890123456789012345678901234567890123456789012345678"
 	bigNum := new(big.Int)
@@ -187,7 +182,7 @@ func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, pr
 	attestationCertBytes := GetCertBytes(privateKey, bigNum, bigStrNotRandom1)
 
 	notRandomReader := strings.NewReader(bigStrNotRandom1)
-	signature := GetSignature(notRandomReader, clientData, keyHandle, privateKey)
+	signature := GetSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey)
 
 	attObj := protocol.AttestationObject{
 		Format: "fido-u2f",
@@ -208,6 +203,7 @@ func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, pr
 	return b64RawURL
 }
 
+// GetCertBytes generates an x509 certificate without using any kind of randomization
 func GetCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReaderStr string) []byte {
 	template := x509.Certificate{}
 
@@ -229,7 +225,11 @@ func GetCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReade
 	return certBytes
 }
 
-func GetSignature(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) []byte {
+// GetSignatureForAttObject starts with byte(0) and appends the sha256 sum of the localAppID and of the clientData
+//  and then appends the keyHandle and an elliptic Marshalled version of the public key
+//  It does a sha256 sum of that and creates a dsa signature of it with the private key and without using any
+//  randomizing
+func GetSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) []byte {
 
 	appParam := sha256.Sum256([]byte(localAppID))
 	challenge := sha256.Sum256(clientData)
@@ -244,8 +244,13 @@ func GetSignature(notRandom io.Reader, clientData []byte, keyHandle string, priv
 	buf = append(buf, pk...)
 
 	digest := sha256.Sum256(buf)
+	_, asnSig := getASN1Signature(notRandom, privateKey, digest[:])
+	return asnSig
+}
 
-	r, s, err := ecdsa.Sign(notRandom, privateKey, digest[:])
+func getASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (dsaSignature, []byte) {
+
+	r, s, err := ecdsa.Sign(notRandom, privateKey, sha256Digest[:])
 	if err != nil {
 		panic("error generating signature: " + err.Error())
 	}
@@ -257,5 +262,5 @@ func GetSignature(notRandom io.Reader, clientData []byte, keyHandle string, priv
 		panic("error encoding signature: " + err.Error())
 	}
 
-	return asnSig
+	return dsaSig, asnSig
 }

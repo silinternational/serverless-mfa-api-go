@@ -8,7 +8,6 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
-	"hash"
 	"io"
 	"math/big"
 	"strings"
@@ -19,26 +18,18 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 )
 
-const localAppID = "http://localhost"
+//
 
-type PublicKeyData struct {
-	// Decode the results to int by default.
-	_struct bool `cbor:",keyasint" json:"public_key"`
-	// The type of key created. Should be OKP, EC2, or RSA.
-	KeyType int64 `cbor:"1,keyasint" json:"kty"`
-	// A COSEAlgorithmIdentifier for the algorithm used to derive the key signature.
-	Algorithm int64 `cbor:"3,keyasint" json:"alg"`
-}
+const (
+	localAppID = "http://localhost"
 
-type EC2PublicKeyData struct {
-	PublicKeyData
-	// If the key type is EC2, the curve on which we derive the signature from.
-	Curve int64 `cbor:"-1,keyasint,omitempty" json:"crv"`
-	// A byte string 32 bytes in length that holds the x coordinate of the key.
-	XCoord []byte `cbor:"-2,keyasint,omitempty" json:"x"`
-	// A byte string 32 bytes in length that holds the y coordinate of the key.
-	YCoord []byte `cbor:"-3,keyasint,omitempty" json:"y"`
-}
+	// 65 = AT(64) + UP(1)
+	// 193 = ED(128) + AT(64) + UP(1)
+	AttObjFlagUserPresent_UP      = 1
+	AttObjFlagUserVerified_UV     = 2
+	AttObjFlagAttestedCredData_AT = 64
+	AttObjFlagExtensionData_ED    = 128
+)
 
 // Encode websafe base64
 func encodeBase64(buf []byte) string {
@@ -47,7 +38,7 @@ func encodeBase64(buf []byte) string {
 }
 
 // Using this instead of rand.Reader, in order to have consistent
-//  the private and public keys, which allows for comparison when tests fail
+//  private and public keys, which allows for comparison when tests fail
 const bigStrNotRandom1 = "11111111111111111111111111111111111111111"
 
 // SignResponse as defined by the FIDO U2F Javascript API.
@@ -99,9 +90,7 @@ func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.Pr
 
 	publicKey := privateKey.PublicKey
 
-	var h hash.Hash
-	h = sha256.New()
-
+	h := sha256.New()
 	h.Write(signatureData)
 
 	signHash := h.Sum(nil)
@@ -109,17 +98,11 @@ func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.Pr
 
 	dsaSig, asnSig := getASN1Signature(notRandomReader, privateKey, signHash)
 
-	signature := dsaSig.R.Bytes()
-	signature = append(signature, dsaSig.S.Bytes()...)
-
-	sigStr := encodeBase64(asnSig)
-
-	isVerified := ecdsa.Verify(&publicKey, signHash, dsaSig.R, dsaSig.S)
-	if !isVerified {
+	if !ecdsa.Verify(&publicKey, signHash, dsaSig.R, dsaSig.S) {
 		panic("start signature is not getting verified for some reason")
 	}
 
-	return sigStr
+	return encodeBase64(asnSig)
 }
 
 // GetPrivateKey returns a newly generated ecdsa private key without using any kind of randomizing
@@ -143,10 +126,7 @@ func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authD
 		authData = append(authData, r)
 	}
 
-	// 65 = AT(64) + UP(1)
-	// 193 = ED(128) + AT(64) + UP(1)
-	// add a flag
-	authData = append(authData, byte(65)) // AT & UP flags
+	authData = append(authData, byte(AttObjFlagAttestedCredData_AT+AttObjFlagUserPresent_UP)) // AT & UP flags
 
 	// Add 4 bytes for counter = 0 (for now, just make it 0)
 	authData = append(authData, []byte{byte(0), byte(0), byte(0), byte(0)}...)
@@ -157,7 +137,10 @@ func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authD
 
 	credID := []byte(keyHandle)
 
-	kHLen := len(keyHandle) // Must be less than 256
+	kHLen := len(keyHandle)
+	if kHLen >= 256 {
+		panic("the length of the keyHandle must be less than 256")
+	}
 	idLen := []byte{byte(0), byte(kHLen)}
 
 	authData = append(authData, idLen...)
@@ -166,8 +149,8 @@ func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authD
 	privateKey = GetPrivateKey()
 	publicKey := privateKey.PublicKey
 
-	pubKeyData := EC2PublicKeyData{
-		PublicKeyData: PublicKeyData{
+	pubKeyData := webauthncose.EC2PublicKeyData{
+		PublicKeyData: webauthncose.PublicKeyData{
 			Algorithm: int64(webauthncose.AlgES256),
 			KeyType:   int64(webauthncose.EllipticKey),
 		},
@@ -231,6 +214,7 @@ func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, pr
 }
 
 // GetCertBytes generates an x509 certificate without using any kind of randomization
+// Most of this was borrowed from https://github.com/ryankurte/go-u2f
 func GetCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReaderStr string) []byte {
 	template := x509.Certificate{}
 

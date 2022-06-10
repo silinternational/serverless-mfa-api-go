@@ -92,7 +92,11 @@ func (l *lambdaResponseWriter) WriteHeader(statusCode int) {
 func Test_Parse(t *testing.T) {
 	assert := require.New(t)
 	id := "kCvEeC0h5T4cmnggaesuj2rpiOloBbtRMuGhBUEHmAOHDTPW9pf5ZkXZtm8OQ7HSYT6XnL0W21rrLvWaVGSzag=="
-	body := `{"rawId":"` + id + `","response":{"attestationObject":"` + testAttestObject + `","getTransports":{},"clientDataJSON":"` + testAssertClientDataJSON + `"},"getClientExtensionResults":{},"id":"kCvEeC0h5T4cmnggaesuj2rpiOloBbtRMuGhBUEHmAOHDTPW9pf5ZkXZtm8OQ7HSYT6XnL0W21rrLvWaVGSzag","type":"public-key"}`
+	body := `{"rawId":"` + id +
+		`","response":{"attestationObject":"` + testAttestObject +
+		`","getTransports":{},"clientDataJSON":"` + testAssertClientDataJSON +
+		`"},"getClientExtensionResults":{},"id":"` + id +
+		`","type":"public-key"}`
 
 	newReader := fixEncoding([]byte(body))
 
@@ -441,10 +445,8 @@ func Test_FinishRegistration(t *testing.T) {
 			assert.NoError(err, "error unmarshalling user credential data")
 
 			assert.Len(creds, tt.wantCredsCount, "incorrect number of user credentials")
-
 		})
 	}
-	//assert.Fail("DEBUGGING")
 }
 
 func Test_BeginLogin(t *testing.T) {

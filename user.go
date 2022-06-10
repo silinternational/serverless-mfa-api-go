@@ -266,10 +266,14 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 }
 
 func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) {
+	if r.Body == nil {
+		return nil, fmt.Errorf("request Body may not be nil in FinishLogin")
+	}
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("failed to read request bodyt: %s", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to read request bodyt: %s", err)
+		log.Printf("failed to read request body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %s", err)
 	}
 
 	br := fixEncoding(body)

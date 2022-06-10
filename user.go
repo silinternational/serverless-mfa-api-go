@@ -266,9 +266,13 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 }
 
 func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) {
+	if r.Body == nil {
+		return nil, fmt.Errorf("request Body may not be nil in FinishRegistration")
+	}
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("failed to read request bodyt: %s", err)
+		log.Printf("failed to read request body: %s", err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to read request bodyt: %s", err)
 	}
 
@@ -278,6 +282,8 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		log.Printf("failed to parse credential request response body: %s", err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
 	}
+
+	fmt.Printf("\nparsedResponse pre validateLogin: %+v\n", parsedResponse.Response.AuthenticatorData)
 
 	// If user has registered U2F creds, check if RPIDHash is actually hash of AppId
 	// if so, replace authenticator data RPIDHash with a hash of the RPID for validation
@@ -291,6 +297,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		rpIdHash := sha256.Sum256([]byte(u.WebAuthnClient.Config.RPID))
 
 		if fmt.Sprintf("%x", parsedResponse.Response.AuthenticatorData.RPIDHash) == fmt.Sprintf("%x", appIdHash) {
+			fmt.Printf("\nREPLACED RPIDHASH\n")
 			parsedResponse.Response.AuthenticatorData.RPIDHash = rpIdHash[:]
 		}
 	}
@@ -302,12 +309,16 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		parsedResponse.Response.UserHandle = nil
 	}
 
+	fmt.Printf("\nUser pre validateLogin: %+v\n", u)
+	fmt.Printf("\nParsedResponse pre validateLogin: %+v\n", parsedResponse.ClientExtensionResults)
+
 	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
 		log.Printf("failed to validate login: %s", err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %s", err)
 	}
 
+	fmt.Printf("\nGot credential\n")
 	return credential, nil
 }
 

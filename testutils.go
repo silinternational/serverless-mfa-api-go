@@ -4,15 +4,21 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
 	"hash"
+	"io"
 	"math/big"
 	"strings"
+	"time"
 
+	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncbor"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 )
+
+const localAppID = "http://localhost"
 
 type PublicKeyData struct {
 	// Decode the results to int by default.
@@ -108,11 +114,11 @@ func GetPrivateKey() *ecdsa.PrivateKey {
 	return privateKey
 }
 
-// GetBareAuthDataAndPrivateKey return the bare authentication data as a string and as a byte slice
+// GetAuthDataAndPrivateKey return the bare authentication data as a string and as a byte slice
 //   and also returns the private key
-func GetBareAuthDataAndPrivateKey(appId, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
+func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
 	// Add in the RP ID Hash (32 bytes)
-	RPIDHash := sha256.Sum256([]byte(appId))
+	RPIDHash := sha256.Sum256([]byte(rpID))
 	for _, r := range RPIDHash {
 		authData = append(authData, r)
 	}
@@ -169,4 +175,87 @@ func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	buf = append(buf, pubKey.Y.Bytes()...)
 
 	return buf
+}
+
+func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) string {
+	bigNumStr := "123456789012345678901234567890123456789012345678901234567890123456789012345678"
+	bigNum := new(big.Int)
+	bigNum, ok := bigNum.SetString(bigNumStr, 10)
+	if !ok {
+		panic("failed to set bigNumber to string")
+	}
+	attestationCertBytes := GetCertBytes(privateKey, bigNum, bigStrNotRandom1)
+
+	notRandomReader := strings.NewReader(bigStrNotRandom1)
+	signature := GetSignature(notRandomReader, clientData, keyHandle, privateKey)
+
+	attObj := protocol.AttestationObject{
+		Format: "fido-u2f",
+
+		RawAuthData: authDataBytes,
+		AttStatement: map[string]interface{}{
+			`x5c`: []interface{}{attestationCertBytes},
+			`sig`: signature,
+		},
+	}
+
+	marshalledAttObj, err := webauthncbor.Marshal(&attObj)
+	if err != nil {
+		panic("error marshalling AttestationObject: " + err.Error())
+	}
+
+	b64RawURL := base64.RawURLEncoding.EncodeToString(marshalledAttObj)
+	return b64RawURL
+}
+
+func GetCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReaderStr string) []byte {
+	template := x509.Certificate{}
+
+	template.SerialNumber = serialNumber
+	template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
+
+	template.NotBefore = time.Date(2022, 1, 1, 1, 1, 1, 1, time.UTC)
+	template.NotAfter = time.Date(2122, 1, 1, 1, 1, 1, 1, time.UTC) // 100 years
+
+	template.SignatureAlgorithm = x509.ECDSAWithSHA256
+
+	newReader := strings.NewReader(certReaderStr)
+
+	certBytes, err := x509.CreateCertificate(newReader, &template, &template, &(privateKey.PublicKey), privateKey)
+	if err != nil {
+		panic("error creating x509 certificate " + err.Error())
+	}
+
+	return certBytes
+}
+
+func GetSignature(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) []byte {
+
+	appParam := sha256.Sum256([]byte(localAppID))
+	challenge := sha256.Sum256(clientData)
+
+	publicKey := privateKey.PublicKey
+
+	buf := []byte{0}
+	buf = append(buf, appParam[:]...)
+	buf = append(buf, challenge[:]...)
+	buf = append(buf, keyHandle...)
+	pk := elliptic.Marshal(publicKey.Curve, publicKey.X, publicKey.Y)
+	buf = append(buf, pk...)
+
+	digest := sha256.Sum256(buf)
+
+	r, s, err := ecdsa.Sign(notRandom, privateKey, digest[:])
+	if err != nil {
+		panic("error generating signature: " + err.Error())
+	}
+
+	dsaSig := dsaSignature{R: r, S: s}
+
+	asnSig, err := asn1.Marshal(dsaSig)
+	if err != nil {
+		panic("error encoding signature: " + err.Error())
+	}
+
+	return asnSig
 }

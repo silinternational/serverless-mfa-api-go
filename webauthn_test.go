@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -17,9 +16,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncbor"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/fxamacker/cbor/v2"
 	"github.com/stretchr/testify/require"
 )
 
@@ -36,21 +33,6 @@ const (
 
 	AssertionTypeFido = "fido-u2f"
 )
-
-const testAssertionResponse = `{
-	"id":"` + testCredID + `",
-	"rawId":"` + testCredID + `",
-	"type":"public-key",
-	"response":{
-		"authenticatorData":"` + testAssertAuthenticatorData + `",
-		"signature":"` + testAssertSignature + `",
-		"clientDataJSON":"` + testAssertClientDataJSON + `",
-		"userHandle":"0ToAAAAAAAAAAA",
-		"attestationObject":"` + testAttestObject + `"
-		}
-	}`
-
-const appID = "http://localhost"
 
 func getTestAssertionResponse(credID, authData, clientData, attestationObject string) []byte {
 	return []byte(`{
@@ -85,10 +67,15 @@ type ClientData struct {
 	CIDPublicKey json.RawMessage `json:"cid_pubkey"`
 }
 
-func getClientDataJson(appID, challenge string) (string, []byte) {
+func getClientDataJson(ceremonyType, challenge string) (string, []byte) {
+	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
+		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
+
+	}
+
 	cd := ClientData{
-		Typ:       "webauthn.get",
-		Origin:    appID,
+		Typ:       ceremonyType,
+		Origin:    localAppID,
 		Challenge: challenge,
 	}
 
@@ -96,42 +83,6 @@ func getClientDataJson(appID, challenge string) (string, []byte) {
 
 	clientData := base64.URLEncoding.EncodeToString(cdJson)
 	return clientData, cdJson
-}
-
-// ctap2CBORDecMode is the cbor.DecMode following the CTAP2 canonical CBOR encoding form
-// (https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#message-encoding)
-var ctap2CBORDecMode, _ = cbor.DecOptions{
-	DupMapKey:       cbor.DupMapKeyEnforcedAPF,
-	MaxNestedLevels: 4,
-	IndefLength:     cbor.IndefLengthForbidden,
-	TagsMd:          cbor.TagsForbidden,
-}.DecMode()
-
-// Unmarshal parses the CBOR-encoded data into the value pointed to by v
-// following the CTAP2 canonical CBOR encoding form.
-// (https://fidoalliance.org/specs/fido-v2.0-ps-20190130/fido-client-to-authenticator-protocol-v2.0-ps-20190130.html#message-encoding)
-func Unmarshal(data []byte, v interface{}) error {
-	return ctap2CBORDecMode.Unmarshal(data, v)
-}
-
-func getRawAuthData(rawAuthObj string) string {
-
-	data, err := hex.DecodeString(rawAuthObj)
-	if err != nil {
-		panic(err)
-	}
-
-	var attObj protocol.AttestationObject
-
-	if err := webauthncbor.Unmarshal(data, &attObj); err != nil {
-		panic("error Unmarshaling attestation Object: " + err.Error())
-	}
-
-	var rawAuthData string
-	decoder := ctap2CBORDecMode.NewDecoder(bytes.NewReader(attObj.RawAuthData))
-	decoder.Decode(&rawAuthData)
-
-	return rawAuthData
 }
 
 type lambdaResponseWriter struct {
@@ -165,14 +116,17 @@ func (l *lambdaResponseWriter) WriteHeader(statusCode int) {
 }
 
 func Test_Parse(t *testing.T) {
-	body := `{"rawId":"kCvEeC0h5T4cmnggaesuj2rpiOloBbtRMuGhBUEHmAOHDTPW9pf5ZkXZtm8OQ7HSYT6XnL0W21rrLvWaVGSzag==","response":{"attestationObject":"o2NmbXRkbm9uZWdhdHRTdG10oGhhdXRoRGF0YVjEd/SocWgnCorN52AiYfEj3abYOxgwLEwK3G2/Pk5e83NBAAAAAAAAAAAAAAAAAAAAAAAAAAAAQJArxHgtIeU+HJp4IGnrLo9q6YjpaAW7UTLhoQVBB5gDhw0z1vaX+WZF2bZvDkOx0mE+l5y9Ftta6y71mlRks2qlAQIDJiABIVggEroUOB+o5SMLdlfIH1E/UJ8sB3sQkrkGpQlo5BSvh+MiWCDnPHY/oEFqXtlAjZTfIPkUCeamWxhHFwLDlplmfccx4w==","getTransports":{},"clientDataJSON":"eyJjaGFsbGVuZ2UiOiJkNWtidXR6MHhSMEJUVkc0eUpWRjRBbHNTZjBSUTFCcGVYSlQwQmtQY3RBIiwiZXh0cmFfa2V5c19tYXlfYmVfYWRkZWRfaGVyZSI6ImRvIG5vdCBjb21wYXJlIGNsaWVudERhdGFKU09OIGFnYWluc3QgYSB0ZW1wbGF0ZS4gU2VlIGh0dHBzOi8vZ29vLmdsL3lhYlBleCIsIm9yaWdpbiI6Imh0dHBzOi8vbG9jYWxob3N0Lmd0aXMuZ3VydSIsInR5cGUiOiJ3ZWJhdXRobi5jcmVhdGUifQ=="},"getClientExtensionResults":{},"id":"kCvEeC0h5T4cmnggaesuj2rpiOloBbtRMuGhBUEHmAOHDTPW9pf5ZkXZtm8OQ7HSYT6XnL0W21rrLvWaVGSzag","type":"public-key"}`
+	assert := require.New(t)
+	id := "kCvEeC0h5T4cmnggaesuj2rpiOloBbtRMuGhBUEHmAOHDTPW9pf5ZkXZtm8OQ7HSYT6XnL0W21rrLvWaVGSzag=="
+	body := `{"rawId":"` + id + `","response":{"attestationObject":"` + testAttestObject + `","getTransports":{},"clientDataJSON":"` + testAssertClientDataJSON + `"},"getClientExtensionResults":{},"id":"kCvEeC0h5T4cmnggaesuj2rpiOloBbtRMuGhBUEHmAOHDTPW9pf5ZkXZtm8OQ7HSYT6XnL0W21rrLvWaVGSzag","type":"public-key"}`
 
 	newReader := fixEncoding([]byte(body))
 
-	_, err := protocol.ParseCredentialCreationResponseBody(newReader)
-	if err != nil {
-		t.Errorf("error: %+v", err)
-	}
+	pccr, err := protocol.ParseCredentialCreationResponseBody(newReader)
+	assert.NoError(err)
+
+	want := strings.ReplaceAll(id, "=", "")
+	assert.Equal(want, pccr.ID, "incorrect RawID")
 }
 
 func testAwsConfig() aws.Config {
@@ -378,15 +332,16 @@ func Test_FinishRegistration(t *testing.T) {
 	}
 
 	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName",       // Display Name for your site
-		RPID:          "http://localhost", // Generally the FQDN for your site
-		RPOrigin:      "http://localhost",
+		RPDisplayName: "TestRPName", // Display Name for your site
+		RPID:          localAppID,   // Generally the FQDN for your site
+		RPOrigin:      localAppID,
 		Debug:         true,
 	})
 
 	assert.NoError(err, "failed creating new webAuthnClient for test")
 
 	const userID = "00345678-1234-1234-1234-123456789012"
+	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	testUser := DynamoUser{
 		ID:             userID,
@@ -398,7 +353,7 @@ func Test_FinishRegistration(t *testing.T) {
 		APIKeyValue:    apiKey.Key,
 		SessionData: webauthn.SessionData{
 			UserID:    []byte(userID),
-			Challenge: "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE",
+			Challenge: challenge,
 		},
 	}
 
@@ -406,24 +361,25 @@ func Test_FinishRegistration(t *testing.T) {
 	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
-	// These are emulated Yubikey values
 	const credID = "dmlydEtleTExLTA"
-	const authData1 = `pAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
-	const clientData = `eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiVzhHekZVOHBHamhvUmJXckxEbGFtQWZxX3k0UzFDWkcxVnVvZVJMQVJyRSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3QiLCJjaWRfcHVia2V5IjpudWxsfQ`
-	const attestObject1 = `pGNmbXRoZmlkby11MmZnYXR0U3RtdKJjc2lnWEcwRQIhAPjqxdYbYrUyAlBQR-nQ_tXX60AJBpgI0GQTQfL9ZseqAiBBQiDk9umctADNzsODWTHwIyajo5WCX0VbKwAyL3pcO2N4NWOBWQEnMIIBIzCByaADAgECAiEA9eyIyd78IXhUlVeZhjH5NGxU7M7pIYWn-BtckXLcusAwCgYIKoZIzj0EAwIwADAgFw0yMjAxMDEwMTAxMDFaGA8yMTIyMDEwMTAxMDEwMVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABLfOZJYdS_V15d2R8w_XCyARAie7u6nXGKjr-3RMzdmWl0zoFoxhKX1YcS_GwWwjUR5QBPeNtulvMk0lcqu4IISjEjAQMA4GA1UdDwEB_wQEAwICpDAKBggqhkjOPQQDAgNJADBGAiEA8hwCpvxu1M99SiHyyVjRh5o1Q657O92FkF4SpA8u0lsCIQDR6hcx3bI4WMCZ5O1qW7xQheuTTRIc7VHPMzF_IikwtGhBdXRoRGF0YaVkcnBpZPZlZmxhZ3MAaGF0dF9kYXRho2ZhYWd1aWT2anB1YmxpY19rZXn2bWNyZWRlbnRpYWxfaWT2aGV4dF9kYXRh9mpzaWduX2NvdW50AGhhdXRoRGF0YViNhgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3ZpcnRLZXkxMS0wpAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
+	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
 
-	reqWithBody1 := getTestAssertionRequest(credID, authData1, clientData, attestObject1, &testUser)
+	keyHandle1 := "virtualkey11"
+	keyHandle2 := "virtualkey12"
 
-	const authData2 = `pAECAyYhWCBWju412vLmFsmCyJUtOhbKLUYKX_sgwxT7jZduFiLLYCJYIHfMpmFqv_yNMRCYFkHf8ZaI_PxYUa6XyWbk5BTQ_LqF`
-	const attestObject2 = `pGNmbXRoZmlkby11MmZnYXR0U3RtdKJjc2lnWEcwRQIhAIO5erw2DrPaMEg_9M-LFlQjZuflevBexyUnRByP7CwZAiAH8Di8vF6pOuGiKaCjthHZ76B5faPnN_3pNHdBRZNpYGN4NWOBWQEmMIIBIjCByaADAgECAiEBIiQiGAIuTOJjXsDxVvxMJ1tAOLHMS6Wn-BtckXLcusAwCgYIKoZIzj0EAwIwADAgFw0yMjAxMDEwMTAxMDFaGA8yMTIyMDEwMTAxMDEwMVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABFaO7jXa8uYWyYLIlS06FsotRgpf-yDDFPuNl24WIstgd8ymYWq__I0xEJgWQd_xloj8_FhRrpfJZuTkFND8uoWjEjAQMA4GA1UdDwEB_wQEAwICpDAKBggqhkjOPQQDAgNIADBFAiAhir4WEzviq4QRwxXUP8w8-JIdskomJXwdDIi3lJtGLgIhAMmtVF0Ld5TDb7ETDI6p5iuIvh6KBQguekyBtC6NVZKVaEF1dGhEYXRhpWRycGlk9mVmbGFncwBoYXR0X2RhdGGjZmFhZ3VpZPZqcHVibGljX2tlefZtY3JlZGVudGlhbF9pZPZoZXh0X2RhdGH2anNpZ25fY291bnQAaGF1dGhEYXRhWI2GBbi6CMINQvnkVRUYcYltDg3pgFlihvtzbRHuwBPipEEAAAAAAAAAAAAAAAAAAAAAAAAAAAALdmlydEtleTEzLTCkAQIDJiFYIFaO7jXa8uYWyYLIlS06FsotRgpf-yDDFPuNl24WIstgIlggd8ymYWq__I0xEJgWQd_xloj8_FhRrpfJZuTkFND8uoU`
+	// These are emulated Yubikey values
+	authData1, authDataBytes1, privateKey1 := GetAuthDataAndPrivateKey(localAppID, keyHandle1)
+	attestObject1 := GetAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
+	reqWithBody1 := getTestAssertionRequest(credID, authData1, clientDataStr, attestObject1, &testUser)
 
-	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientData, attestObject2, &testUser)
+	authData2, authDataBytes2, privateKey2 := GetAuthDataAndPrivateKey(localAppID, "virtualkey12")
+	attestObject2 := GetAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2)
+	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientDataStr, attestObject2, &testUser)
 
 	localStorage.Store(envConfig.WebauthnTable, &testUser)
 
 	tests := []struct {
 		name               string
-		httpWriter         *lambdaResponseWriter
 		httpReq            http.Request
 		wantBodyContains   []string
 		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
@@ -431,24 +387,21 @@ func Test_FinishRegistration(t *testing.T) {
 	}{
 		{
 			name:             "no user",
-			httpWriter:       newLambdaResponseWriter(),
 			httpReq:          http.Request{},
 			wantBodyContains: []string{`"error":"unable to get user from request context"`},
 		},
 		{
-			name:       "request has no body",
-			httpWriter: newLambdaResponseWriter(),
-			httpReq:    reqNoBody,
+			name:    "request has no body",
+			httpReq: reqNoBody,
 			wantBodyContains: []string{
 				`"error":"request Body may not be nil in FinishRegistration"`,
 			},
 		},
 		{
-			name:       "all good - first u2f key",
-			httpWriter: newLambdaResponseWriter(),
-			httpReq:    *reqWithBody1,
+			name:    "all good - first u2f key",
+			httpReq: *reqWithBody1,
 			wantBodyContains: []string{
-				`{"key_handle_hash":"g9MyqPUyL8trqvh0hQp8C3eeJfJascvinEbh6ImpVCc"}`,
+				`{"key_handle_hash":"ZYDzzEkj-JY80I7IviiMswRyYvTEh5DDXlhssMFs6Kw"}`,
 			},
 			wantDynamoContains: []string{
 				`{Count: 1`,
@@ -459,11 +412,10 @@ func Test_FinishRegistration(t *testing.T) {
 			wantCredsCount: 1,
 		},
 		{
-			name:       "all good - second u2f key",
-			httpWriter: newLambdaResponseWriter(),
-			httpReq:    *reqWithBody2,
+			name:    "all good - second u2f key",
+			httpReq: *reqWithBody2,
 			wantBodyContains: []string{
-				`{"key_handle_hash":"tMRpoP2iSwo3rYH6lDT_kiPEltM3zFqyzaGfNayZ8SM"}`,
+				`{"key_handle_hash":"ANyGhfjNgKwiap6UuhmYlZr_dao7x8SRFwU_IR7j2Pc"}`,
 			},
 			wantDynamoContains: []string{
 				`{Count: 1`, // Still only one user, but now with 2 credentials
@@ -476,9 +428,10 @@ func Test_FinishRegistration(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			FinishRegistration(tt.httpWriter, &tt.httpReq)
+			httpWriter := newLambdaResponseWriter()
+			FinishRegistration(httpWriter, &tt.httpReq)
 
-			gotBody := string(tt.httpWriter.Body)
+			gotBody := string(httpWriter.Body)
 			for _, w := range tt.wantBodyContains {
 				assert.Contains(gotBody, w)
 			}
@@ -700,7 +653,7 @@ func Test_FinishLogin(t *testing.T) {
 
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "TestRPName", // Display Name for your site
-		RPID:          appID,        // Generally the FQDN for your site
+		RPID:          localAppID,   // Generally the FQDN for your site
 		Debug:         true,
 	})
 
@@ -719,12 +672,12 @@ func Test_FinishLogin(t *testing.T) {
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	keyHandle1 := "virtKey11"
-	authData1, authDataBytes1, privateKey1 := GetBareAuthDataAndPrivateKey(appID, keyHandle1)
+	authData1, authDataBytes1, privateKey1 := GetAuthDataAndPrivateKey(localAppID, keyHandle1)
 
 	keyHandle2 := "virtKey12"
-	authData2, authDataBytes2, privateKey2 := GetBareAuthDataAndPrivateKey(appID, keyHandle2)
+	authData2, authDataBytes2, privateKey2 := GetAuthDataAndPrivateKey(localAppID, keyHandle2)
 
-	clientData, cdBytes := getClientDataJson(appID, challenge)
+	clientData, cdBytes := getClientDataJson("webauthn.get", challenge)
 	publicKey1 := GetPublicKeyAsBytes(privateKey1)
 	publicKey2 := GetPublicKeyAsBytes(privateKey2)
 
@@ -752,7 +705,7 @@ func Test_FinishLogin(t *testing.T) {
 		SessionData: webauthn.SessionData{
 			UserID:     []byte(userID),
 			Challenge:  challenge,
-			Extensions: protocol.AuthenticationExtensions{"appid": appID},
+			Extensions: protocol.AuthenticationExtensions{"appid": localAppID},
 		},
 		Credentials: creds,
 	}
@@ -848,7 +801,7 @@ func Test_GetSignatureForLogin(t *testing.T) {
 
 	cd := ClientData{
 		Typ:       "webauthn.get",
-		Origin:    appID,
+		Origin:    localAppID,
 		Challenge: challenge,
 	}
 
@@ -868,17 +821,17 @@ func Test_GetSignatureForLogin(t *testing.T) {
 	xyData = append(xyData, bigXY.Bytes()...)
 
 	keyHandle := "virtKey11"
-	_, authDataBytes1, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
+	_, authDataBytes1, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
 	signature := GenerateAuthenticationSig(authDataBytes1, clientData, privateKey)
 
 	want := "MEYCIQDH_BmLNjJNqS8b725jiqzyc5JZmNh8wYuaPBH3PjELMwIhANsuNznzM92SrYonfrX9-nL4CzOhuiOSxkZ7YFmOkTdd"
 	assert.Equal(want, signature, "incorrect signature")
 }
 
-func Test_GetBareAuthDataAndPrivateKey(t *testing.T) {
+func Test_GetAuthDataAndPrivateKey(t *testing.T) {
 	assert := require.New(t)
 	keyHandle := "virtKey11"
-	authData, authDataBytes, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
+	authData, authDataBytes, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
 
 	want := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAACXZpcnRLZXkxMaQBAgMmIVggBtYaQhitMvmuvKeeUZmuh96TmXTRGxB_6bfslWmTVF4iWCCK1h-O_T8R6MjkIWCsX-Pry8RJhuOxbDwovnYJBu0SZw`
 	assert.Equal(want, authData, "incorrect bare authentication data")
@@ -891,7 +844,7 @@ func Test_GetBareAuthDataAndPrivateKey(t *testing.T) {
 func Test_GetPublicKeyAsBytes(t *testing.T) {
 	assert := require.New(t)
 	const keyHandle = "virtKey11"
-	_, _, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
+	_, _, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
 
 	got := GetPublicKeyAsBytes(privateKey)
 

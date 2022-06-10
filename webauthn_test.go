@@ -3,16 +3,10 @@ package mfa
 import (
 	"bytes"
 	"context"
-	"crypto/ecdsa"
-	"crypto/elliptic"
-	"crypto/rand"
-	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"hash"
-	"io"
 	"io/ioutil"
 	"math/big"
 	"net/http"
@@ -520,7 +514,6 @@ func Test_FinishRegistration(t *testing.T) {
 			assert.NoError(err, "error unmarshalling user credential data")
 
 			assert.Len(creds, tt.wantCredsCount, "incorrect number of user credentials")
-			fmt.Printf("\nCREDS: %+v\n", creds)
 
 		})
 	}
@@ -682,189 +675,7 @@ func Test_BeginLogin(t *testing.T) {
 	}
 }
 
-func zTest_FinishLogin(t *testing.T) {
-	assert := require.New(t)
-
-	awsConfig := testAwsConfig()
-
-	localStorage, err := NewStorage(&awsConfig)
-	assert.NoError(err, "failed creating local storage for test")
-
-	err = initDb(nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
-
-	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
-	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
-
-	apiKey := ApiKey{
-		Key:    apiKeyKey,
-		Secret: apiKeySec,
-		Store:  localStorage,
-	}
-
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName",       // Display Name for your site
-		RPID:          "http://localhost", // Generally the FQDN for your site
-		Debug:         true,
-	})
-
-	assert.NoError(err, "failed creating new webAuthnClient for test")
-
-	const userID = "00345678-1234-1234-1234-123456789012"
-	userIDEncoded := base64.StdEncoding.EncodeToString([]byte(userID))
-
-	// Give user two different credentials to see them come through
-	const credID1 = "11345678-1234-1234-1234-123456789012"
-	credIDEncoded1 := base64.StdEncoding.EncodeToString([]byte(credID1))
-	fmt.Printf("\ncredIDEncoded1: %s\n", credIDEncoded1)
-	//credIDDecoded1, err := base64.RawURLEncoding.DecodeString(credID1)
-
-	const credID2 = "22345678-1234-1234-1234-123456789012"
-	//credIDEncoded2 := base64.StdEncoding.EncodeToString([]byte(credID2))
-
-	//const authData1 = `pAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
-	//const clientData = `eyJ0eXBlIjoid2ViYXV0aG4uY3JlYXRlIiwiY2hhbGxlbmdlIjoiVzhHekZVOHBHamhvUmJXckxEbGFtQWZxX3k0UzFDWkcxVnVvZVJMQVJyRSIsIm9yaWdpbiI6Imh0dHA6Ly9sb2NhbGhvc3QiLCJjaWRfcHVia2V5IjpudWxsfQ`
-	//const attestObject1 = `pGNmbXRoZmlkby11MmZnYXR0U3RtdKJjc2lnWEcwRQIhAPjqxdYbYrUyAlBQR-nQ_tXX60AJBpgI0GQTQfL9ZseqAiBBQiDk9umctADNzsODWTHwIyajo5WCX0VbKwAyL3pcO2N4NWOBWQEnMIIBIzCByaADAgECAiEA9eyIyd78IXhUlVeZhjH5NGxU7M7pIYWn-BtckXLcusAwCgYIKoZIzj0EAwIwADAgFw0yMjAxMDEwMTAxMDFaGA8yMTIyMDEwMTAxMDEwMVowADBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABLfOZJYdS_V15d2R8w_XCyARAie7u6nXGKjr-3RMzdmWl0zoFoxhKX1YcS_GwWwjUR5QBPeNtulvMk0lcqu4IISjEjAQMA4GA1UdDwEB_wQEAwICpDAKBggqhkjOPQQDAgNJADBGAiEA8hwCpvxu1M99SiHyyVjRh5o1Q657O92FkF4SpA8u0lsCIQDR6hcx3bI4WMCZ5O1qW7xQheuTTRIc7VHPMzF_IikwtGhBdXRoRGF0YaVkcnBpZPZlZmxhZ3MAaGF0dF9kYXRho2ZhYWd1aWT2anB1YmxpY19rZXn2bWNyZWRlbnRpYWxfaWT2aGV4dF9kYXRh9mpzaWduX2NvdW50AGhhdXRoRGF0YViNhgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3ZpcnRLZXkxMS0wpAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
-
-	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
-	//authData1 := getRawAuthData(`pAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`)
-	//authData1 := `pAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
-	authData1 := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3ZpcnRLZXkxMS0wpAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
-	//  original "authenticatorData":"dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvBFXJJiGa3OAAI1vMYKZIsLJfHwVQMANwCOw-atj9C0vhWpfWU-whzNjeQS21Lpxfdk_G-omAtffWztpGoErlNOfuXWRqm9Uj9ANJck1p6lAQIDJiABIVggKAhfsdHcBIc0KPgAcRyAIK_-Vi-nCXHkRHPNaCMBZ-4iWCBxB8fGYQSBONi9uvq0gv95dGWlhJrBwCsj_a4LJQKVHQ",
-	const authData2 = `pAECAyYhWCBWju412vLmFsmCyJUtOhbKLUYKX_sgwxT7jZduFiLLYCJYIHfMpmFqv_yNMRCYFkHf8ZaI_PxYUa6XyWbk5BTQ_LqF`
-
-	clientData, _ := getClientDataJson(appID, challenge)
-	Gx, ok := new(big.Int).SetString("6b17d1f2e12c4247f8bce6e563a440f277037d812deb33a0f4a13945d898c296", 16)
-	if !ok {
-		panic("Failed making bigint")
-	}
-
-	fmt.Printf("\n\nGx.Bytes(): %v\n", Gx.Bytes())
-	//curve := elliptic.P256()
-	//curve.IsOnCurve()
-	xyStr := "4843956129390645175905258525279791420276294952604174799584408071708240463528636134250956749795798585127919587881956611106672985015071877198253568414405109"
-
-	bigXY, ok := new(big.Int).SetString(xyStr, 16)
-	if !ok {
-		panic("Failed making bigint")
-	}
-
-	fmt.Printf("\n\nxyStr.Bytes(): %v\n", bigXY.Bytes())
-	xyData := []byte{4}
-	xyData = append(xyData, bigXY.Bytes()...)
-
-	fmt.Printf("\n\nxyData: %v\n", xyData)
-
-	creds := []webauthn.Credential{
-		{
-			ID: []byte(credID1),
-
-			// The 4 at the beginning is expected for some reason
-			// The rest is from elliptic's p256 curve.Params().Gx.Bytes() and curve.Params().Gy.Bytes()
-			PublicKey:       []byte{4, 107, 23, 209, 242, 225, 44, 66, 71, 248, 188, 230, 229, 99, 164, 64, 242, 119, 3, 125, 129, 45, 235, 51, 160, 244, 161, 57, 69, 216, 152, 194, 150, 79, 227, 66, 226, 254, 26, 127, 155, 142, 231, 235, 74, 124, 15, 158, 22, 43, 206, 51, 87, 107, 49, 94, 206, 203, 182, 64, 104, 55, 191, 81, 245},
-			AttestationType: AssertionTypeFido,
-		},
-		{
-			ID:              []byte(credID2),
-			PublicKey:       []byte("5678"),
-			AttestationType: AssertionTypeFido,
-		},
-	}
-
-	userWithCreds := DynamoUser{
-		ID:             userID,
-		Name:           "Charlie_HasCredentials",
-		DisplayName:    "Charlie HasCredentials",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		APIKeyValue:    apiKey.Key,
-		SessionData: webauthn.SessionData{
-			UserID:     []byte(userID),
-			Challenge:  challenge,
-			Extensions: protocol.AuthenticationExtensions{"appid": appID},
-		},
-		Credentials: creds,
-	}
-
-	signature := "MEUCIQDK_uAm2yOECPGQfJUwVBjM1sUgZ72IIMsE7MdyfPq7JgIgNZBFaD_QaKLPcgVRJgI9T1xkY5s_AsuFUgclWWGPPAQ"
-
-	var testAssertionResponses = `{
-		  "id":"` + credIDEncoded1 + `",
-		  "rawId":"` + credIDEncoded1 + `",
-		  "type":"public-key",
-		  "clientExtensionResults":{"appid":true},
-		  "response":{
-		    "authenticatorData":"` + authData1 + `",
-			"clientDataJSON":"` + clientData + `",
-			"signature":"` + signature + `",
-			"userHandle":"` + userIDEncoded + `"
-          }
-		}`
-
-	body := ioutil.NopCloser(bytes.NewReader([]byte(testAssertionResponses)))
-
-	reqWithBody := http.Request{Body: body}
-
-	ctxWithUserCredentials := context.WithValue(reqWithBody.Context(), UserContextKey, &userWithCreds)
-	reqWithBody = *reqWithBody.WithContext(ctxWithUserCredentials)
-
-	//body := ioutil.NopCloser(bytes.NewReader(assertResp))
-	//
-	//reqWithBody := &http.Request{Body: body}
-	//ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
-	//reqWithBody = reqWithBody.WithContext(ctxWithUser)
-
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUserCredentials)
-
-	tests := []struct {
-		name             string
-		httpWriter       *lambdaResponseWriter
-		httpReq          http.Request
-		wantBodyContains []string
-	}{
-		//{
-		//	name:             "no user",
-		//	httpWriter:       newLambdaResponseWriter(),
-		//	httpReq:          http.Request{},
-		//	wantBodyContains: []string{`"error":"unable to get user from request context"`},
-		//},
-		//{
-		//	name:             "has a user but no credentials",
-		//	httpWriter:       newLambdaResponseWriter(),
-		//	httpReq:          reqNoCredentials,
-		//	wantBodyContains: []string{`"error":"Found no credentials for user"`},
-		//},
-		{
-			name:       "has a user with credentials",
-			httpWriter: newLambdaResponseWriter(),
-			httpReq:    reqWithBody,
-			wantBodyContains: []string{
-				`zzError validating the assertion signature`,
-			},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			FinishLogin(tt.httpWriter, &tt.httpReq)
-			fmt.Printf("\nXXXXXXXXXXXXXXXXXXXXXXXXXX\n\n")
-
-			gotBody := string(tt.httpWriter.Body)
-			fmt.Printf("\nGOT BODY %v <<<\n", gotBody)
-			for _, w := range tt.wantBodyContains {
-				fmt.Printf("\nWWWWWWWWWWWWW %v <<<\n", w)
-				assert.Contains(gotBody, w, "missing value in body")
-			}
-			fmt.Printf("\nZZZZZZZZZZZZZZZZZZZZZZZZZZ\n\n")
-
-		})
-	}
-}
-
-func Test_FinishLogin2(t *testing.T) {
+func Test_FinishLogin(t *testing.T) {
 	assert := require.New(t)
 
 	awsConfig := testAwsConfig()
@@ -901,35 +712,31 @@ func Test_FinishLogin2(t *testing.T) {
 	// Give user two different credentials to see them come through
 	const credID1 = "11345678-1234-1234-1234-123456789012"
 	credIDEncoded1 := base64.StdEncoding.EncodeToString([]byte(credID1))
-	fmt.Printf("\ncredIDEncoded1: %s\n", credIDEncoded1)
-	//credIDDecoded1, err := base64.RawURLEncoding.DecodeString(credID1)
 
 	const credID2 = "22345678-1234-1234-1234-123456789012"
-	//credIDEncoded2 := base64.StdEncoding.EncodeToString([]byte(credID2))
+	credIDEncoded2 := base64.StdEncoding.EncodeToString([]byte(credID2))
 
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
-	//authData1 := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3ZpcnRLZXkxMS0wpAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
-	//authData1 := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAACXZpcnRLZXkxMaQBAgMmIVggBtYaQhitMvmuvKeeUZmuh96TmXTRGxB_6bfslWmTVF4iWCCK1h-O_T8R6MjkIWCsX-Pry8RJhuOxbDwovnYJBu0SZw`
 
-	keyHandle := "virtKey11"
-	authData1, authDataBytes1, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
-	fmt.Printf("\nADB: %v\n", authDataBytes1)
+	keyHandle1 := "virtKey11"
+	authData1, authDataBytes1, privateKey1 := GetBareAuthDataAndPrivateKey(appID, keyHandle1)
+
+	keyHandle2 := "virtKey12"
+	authData2, authDataBytes2, privateKey2 := GetBareAuthDataAndPrivateKey(appID, keyHandle2)
 
 	clientData, cdBytes := getClientDataJson(appID, challenge)
-	publicKey1 := GetPublicKeyAsBytes(privateKey)
+	publicKey1 := GetPublicKeyAsBytes(privateKey1)
+	publicKey2 := GetPublicKeyAsBytes(privateKey2)
 
 	creds := []webauthn.Credential{
 		{
-			ID: []byte(credID1),
-
-			// The 4 at the beginning is expected for some reason
-			// The rest is from elliptic's p256 curve.Params().Gx.Bytes() and curve.Params().Gy.Bytes()
+			ID:              []byte(credID1),
 			PublicKey:       publicKey1,
 			AttestationType: AssertionTypeFido,
 		},
 		{
 			ID:              []byte(credID2),
-			PublicKey:       []byte("5678"),
+			PublicKey:       publicKey2,
 			AttestationType: AssertionTypeFido,
 		},
 	}
@@ -950,14 +757,9 @@ func Test_FinishLogin2(t *testing.T) {
 		Credentials: creds,
 	}
 
-	cdHash := sha256.Sum256(cdBytes)
+	signature1 := GenerateAuthenticationSig(authDataBytes1, cdBytes, privateKey1)
 
-	signature := GenerateAuthenticationSigFromPrivateKey3(authDataBytes1, cdBytes, privateKey)
-	fmt.Printf("\nclientHash: %v\n", cdHash)
-	fmt.Printf("\nSIGNATUURE: %s\n", signature)
-	//signature := "MEUCIQDK_uAm2yOECPGQfJUwVBjM1sUgZ72IIMsE7MdyfPq7JgIgNZBFaD_QaKLPcgVRJgI9T1xkY5s_AsuFUgclWWGPPAQ"
-
-	var testAssertionResponses = `{
+	var assertionResponse1 = `{
 		  "id":"` + credIDEncoded1 + `",
 		  "rawId":"` + credIDEncoded1 + `",
 		  "type":"public-key",
@@ -965,71 +767,81 @@ func Test_FinishLogin2(t *testing.T) {
 		  "response":{
 		    "authenticatorData":"` + authData1 + `",
 			"clientDataJSON":"` + clientData + `",
-			"signature":"` + signature + `",
+			"signature":"` + signature1 + `",
 			"userHandle":"` + userIDEncoded + `"
           }
 		}`
 
-	body := ioutil.NopCloser(bytes.NewReader([]byte(testAssertionResponses)))
+	body1 := ioutil.NopCloser(bytes.NewReader([]byte(assertionResponse1)))
+	reqWithBody1 := http.Request{Body: body1}
+	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, &userWithCreds)
+	reqWithBody1 = *reqWithBody1.WithContext(ctxUserCred1)
 
-	reqWithBody := http.Request{Body: body}
+	localStorage.Store(envConfig.WebauthnTable, ctxUserCred1)
 
-	ctxWithUserCredentials := context.WithValue(reqWithBody.Context(), UserContextKey, &userWithCreds)
-	reqWithBody = *reqWithBody.WithContext(ctxWithUserCredentials)
+	signature2 := GenerateAuthenticationSig(authDataBytes2, cdBytes, privateKey1)
 
-	//body := ioutil.NopCloser(bytes.NewReader(assertResp))
-	//
-	//reqWithBody := &http.Request{Body: body}
-	//ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
-	//reqWithBody = reqWithBody.WithContext(ctxWithUser)
+	var assertionResponse2 = `{
+		  "id":"` + credIDEncoded2 + `",
+		  "rawId":"` + credIDEncoded2 + `",
+		  "type":"public-key",
+		  "clientExtensionResults":{"appid":true},
+		  "response":{
+		    "authenticatorData":"` + authData2 + `",
+			"clientDataJSON":"` + clientData + `",
+			"signature":"` + signature2 + `",
+			"userHandle":"` + userIDEncoded + `"
+          }
+		}`
 
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUserCredentials)
+	body2 := ioutil.NopCloser(bytes.NewReader([]byte(assertionResponse2)))
+
+	reqWithBody2 := http.Request{Body: body2}
+	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, &userWithCreds)
+	reqWithBody2 = *reqWithBody2.WithContext(ctxUserCred2)
+
+	localStorage.Store(envConfig.WebauthnTable, ctxUserCred2)
 
 	tests := []struct {
 		name             string
-		httpWriter       *lambdaResponseWriter
 		httpReq          http.Request
 		wantBodyContains []string
 	}{
-		//{
-		//	name:             "no user",
-		//	httpWriter:       newLambdaResponseWriter(),
-		//	httpReq:          http.Request{},
-		//	wantBodyContains: []string{`"error":"unable to get user from request context"`},
-		//},
-		//{
-		//	name:             "has a user but no credentials",
-		//	httpWriter:       newLambdaResponseWriter(),
-		//	httpReq:          reqNoCredentials,
-		//	wantBodyContains: []string{`"error":"Found no credentials for user"`},
-		//},
 		{
-			name:       "has a user with credentials",
-			httpWriter: newLambdaResponseWriter(),
-			httpReq:    reqWithBody,
+			name:             "no user",
+			httpReq:          http.Request{},
+			wantBodyContains: []string{`"error":"unable to get user from request context"`},
+		},
+		{
+			name:    "with first credential",
+			httpReq: reqWithBody1,
 			wantBodyContains: []string{
 				`"credentialId":"` + credID1 + `"`,
+			},
+		},
+		{
+			name:    "with second credential",
+			httpReq: reqWithBody2,
+			wantBodyContains: []string{
+				`"credentialId":"` + credID2 + `"`,
 			},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			FinishLogin(tt.httpWriter, &tt.httpReq)
-			fmt.Printf("\nXXXXXXXXXXXXXXXXXXXXXXXXXX\n\n")
+			httpWriter := newLambdaResponseWriter()
+			FinishLogin(httpWriter, &tt.httpReq)
 
-			gotBody := string(tt.httpWriter.Body)
-			fmt.Printf("\nGOT BODY %v <<<\n", gotBody)
+			gotBody := string(httpWriter.Body)
+
 			for _, w := range tt.wantBodyContains {
-				fmt.Printf("\nWWWWWWWWWWWWW %v <<<\n", w)
 				assert.Contains(gotBody, w, "missing value in body")
 			}
-			fmt.Printf("\nZZZZZZZZZZZZZZZZZZZZZZZZZZ\n\n")
-
 		})
 	}
 }
 
-func zTest_GetSignatureForLogin(t *testing.T) {
+func Test_GetSignatureForLogin(t *testing.T) {
 	assert := require.New(t)
 
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
@@ -1052,58 +864,22 @@ func zTest_GetSignatureForLogin(t *testing.T) {
 		panic("Failed making bigint")
 	}
 
-	xyData := []byte{4}
-	xyData = append(xyData, bigXY.Bytes()...)
-
-	signature := GenerateAuthenticationSig(appID, clientData)
-
-	want := "MEUCIQDK_uAm2yOECPGQfJUwVBjM1sUgZ72IIMsE7MdyfPq7JgIgNZBFaD_QaKLPcgVRJgI9T1xkY5s_AsuFUgclWWGPPAQ"
-	//fmt.Printf("\nSignature: %v", signature)
-	assert.Equal(want, signature, "incorrect signature")
-}
-
-func zTest_GetSignatureForLoginFromPrivateKey(t *testing.T) {
-	assert := require.New(t)
-
-	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
-
-	cd := ClientData{
-		Typ:       "webauthn.get",
-		Origin:    appID,
-		Challenge: challenge,
-	}
-
-	clientData, err := json.Marshal(cd)
-	if err != nil {
-		panic("error marshalling client data: " + err.Error())
-	}
-
-	xyStr := "4843956129390645175905258525279791420276294952604174799584408071708240463528636134250956749795798585127919587881956611106672985015071877198253568414405109"
-
-	bigXY, ok := new(big.Int).SetString(xyStr, 16)
-	if !ok {
-		panic("Failed making bigint")
-	}
-
-	fmt.Printf("\n\nxyStr.Bytes(): %v\n", bigXY.Bytes())
 	xyData := []byte{4}
 	xyData = append(xyData, bigXY.Bytes()...)
 
 	keyHandle := "virtKey11"
-	_, _, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
-	signature := GenerateAuthenticationSigFromPrivateKey(appID, clientData, privateKey)
+	_, authDataBytes1, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
+	signature := GenerateAuthenticationSig(authDataBytes1, clientData, privateKey)
 
-	want := "MEUCIQDK_uAm2yOECPGQfJUwVBjM1sUgZ72IIMsE7MdyfPq7JgIgNZBFaD_QaKLPcgVRJgI9T1xkY5s_AsuFUgclWWGPPAQ"
-	//fmt.Printf("\nSignature: %v", signature)
+	want := "MEYCIQDH_BmLNjJNqS8b725jiqzyc5JZmNh8wYuaPBH3PjELMwIhANsuNznzM92SrYonfrX9-nL4CzOhuiOSxkZ7YFmOkTdd"
 	assert.Equal(want, signature, "incorrect signature")
 }
 
-func zTest_GetBareAuthDataAndPrivateKey(t *testing.T) {
+func Test_GetBareAuthDataAndPrivateKey(t *testing.T) {
 	assert := require.New(t)
 	keyHandle := "virtKey11"
 	authData, authDataBytes, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
 
-	//want := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAAC3ZpcnRLZXkxMS0wpAECAyYhWCC3zmSWHUv1deXdkfMP1wsgEQInu7up1xio6_t0TM3ZliJYIJdM6BaMYSl9WHEvxsFsI1EeUAT3jbbpbzJNJXKruCCE`
 	want := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAACXZpcnRLZXkxMaQBAgMmIVggBtYaQhitMvmuvKeeUZmuh96TmXTRGxB_6bfslWmTVF4iWCCK1h-O_T8R6MjkIWCsX-Pry8RJhuOxbDwovnYJBu0SZw`
 	assert.Equal(want, authData, "incorrect bare authentication data")
 
@@ -1112,116 +888,15 @@ func zTest_GetBareAuthDataAndPrivateKey(t *testing.T) {
 	assert.Equal("P-256", privateKey.Params().Name)
 }
 
-func zTest_GetPublicKeyAsBytes(t *testing.T) {
+func Test_GetPublicKeyAsBytes(t *testing.T) {
 	assert := require.New(t)
-	keyHandle := "virtKey11"
+	const keyHandle = "virtKey11"
 	_, _, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
 
 	got := GetPublicKeyAsBytes(privateKey)
 
-	want := []byte{4, 107, 23, 209, 242, 225, 44, 66, 71, 248, 188, 230, 229, 99, 164, 64, 242, 119, 3, 125, 129, 45, 235, 51, 160, 244, 161, 57, 69, 216, 152, 194, 150, 79, 227, 66, 226, 254, 26, 127, 155, 142, 231, 235, 74, 124, 15, 158, 22, 43, 206, 51, 87, 107, 49, 94, 206, 203, 182, 64, 104, 55, 191, 81, 245}
-	//fmt.Printf("\nGot Bytes: %v\n", got)
+	want := []byte{4, 6, 214, 26, 66, 24, 173, 50, 249, 174, 188, 167, 158, 81, 153, 174, 135, 222, 147, 153, 116, 209, 27, 16, 127, 233, 183, 236, 149, 105, 147, 84, 94, 138, 214, 31, 142, 253, 63, 17, 232, 200, 228, 33, 96, 172, 95, 227, 235, 203, 196, 73, 134, 227, 177, 108, 60, 40, 190, 118, 9, 6, 237, 18, 103}
+
 	assert.Equal(want, got, "incorrect public Key")
-
-}
-
-func zTest_ECDSASignVerify(t *testing.T) {
-	assert := require.New(t)
-
-	message := "Will this string get verified"
-
-	curve := elliptic.P256()
-	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
-	assert.NoError(err, "error generating private key")
-
-	publicKey := privateKey.PublicKey
-
-	var h hash.Hash
-	//h = md5.New()
-	h = sha256.New()
-	r := big.NewInt(0)
-	s := big.NewInt(0)
-
-	io.WriteString(h, message)
-	signhash := h.Sum(nil)
-
-	r, s, serr := ecdsa.Sign(rand.Reader, privateKey, signhash)
-	if serr != nil {
-		panic("error signing: " + serr.Error())
-	}
-
-	signature := r.Bytes()
-	signature = append(signature, s.Bytes()...)
-
-	fmt.Printf("Signature : %x\n", signature)
-
-	// Verify
-	verifystatus := ecdsa.Verify(&publicKey, signhash, r, s)
-	fmt.Println(verifystatus) // should be true
-	assert.True(verifystatus)
-}
-
-func zTest_ECDSASignVerifyWithBytes(t *testing.T) {
-	assert := require.New(t)
-
-	//message := "Will this string get verified"
-
-	///////////
-
-	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
-	keyHandle := "virtKey11"
-	_, authDataBytes1, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
-	//fmt.Printf("\nADB: %v\n", authDataBytes1)
-
-	clientData, cdBytes := getClientDataJson(appID, challenge)
-	//signature := GenerateAuthenticationSigFromPrivateKey2(authDataBytes1, cdBytes, privateKey)
-
-	//message = authData1 + clientData
-
-	clientDataHash := sha256.Sum256(cdBytes)
-	fmt.Printf("\nStartClientData: %v\nStartCDHash: %v\n", clientData, clientDataHash)
-	signatureData := append(authDataBytes1, clientDataHash[:]...)
-	////////////////
-	//	curve := elliptic.P256()
-	//	privateKey, err := ecdsa.GenerateKey(curve, rand.Reader)
-	//	assert.NoError(err, "error generating private key")
-
-	publicKey := privateKey.PublicKey
-
-	var h hash.Hash
-	//h = md5.New()
-	h = sha256.New()
-	r := big.NewInt(0)
-	s := big.NewInt(0)
-
-	h.Write(signatureData)
-
-	//io.WriteString(h, message)
-	signhash := h.Sum(nil)
-
-	r, s, serr := ecdsa.Sign(rand.Reader, privateKey, signhash)
-	if serr != nil {
-		panic("error signing: " + serr.Error())
-	}
-
-	signature := r.Bytes()
-	signature = append(signature, s.Bytes()...)
-
-	fmt.Printf("Signature : %x\n", signature)
-
-	// Verify
-	verifystatus := ecdsa.Verify(&publicKey, signhash, r, s)
-	fmt.Println(verifystatus) // should be true
-	assert.True(verifystatus)
-}
-
-func zTest_GenerateSignature3(t *testing.T) {
-	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
-	keyHandle := "virtKey11"
-	_, authDataBytes1, privateKey := GetBareAuthDataAndPrivateKey(appID, keyHandle)
-	//fmt.Printf("\nADB: %v\n", authDataBytes1)
-
-	_, cdBytes := getClientDataJson(appID, challenge)
-	GenerateAuthenticationSigFromPrivateKey3(authDataBytes1, cdBytes, privateKey)
 
 }

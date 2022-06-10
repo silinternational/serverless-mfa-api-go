@@ -59,32 +59,6 @@ func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 stri
 	return reqWithBody
 }
 
-// ClientData as defined by the FIDO U2F Raw Message Formats specification.
-type ClientData struct {
-	Typ          string          `json:"type"`
-	Challenge    string          `json:"challenge"`
-	Origin       string          `json:"origin"`
-	CIDPublicKey json.RawMessage `json:"cid_pubkey"`
-}
-
-func getClientDataJson(ceremonyType, challenge string) (string, []byte) {
-	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
-		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
-
-	}
-
-	cd := ClientData{
-		Typ:       ceremonyType,
-		Origin:    localAppID,
-		Challenge: challenge,
-	}
-
-	cdJson, _ := json.Marshal(cd)
-
-	clientData := base64.URLEncoding.EncodeToString(cdJson)
-	return clientData, cdJson
-}
-
 type lambdaResponseWriter struct {
 	Body    []byte
 	Headers http.Header

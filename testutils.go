@@ -7,6 +7,7 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/base64"
+	"encoding/json"
 	"hash"
 	"io"
 	"math/big"
@@ -59,6 +60,32 @@ type SignResponse struct {
 // Internal type for ASN1 coercion
 type dsaSignature struct {
 	R, S *big.Int
+}
+
+// ClientData as defined by the FIDO U2F Raw Message Formats specification.
+type ClientData struct {
+	Typ          string          `json:"type"`
+	Challenge    string          `json:"challenge"`
+	Origin       string          `json:"origin"`
+	CIDPublicKey json.RawMessage `json:"cid_pubkey"`
+}
+
+func getClientDataJson(ceremonyType, challenge string) (string, []byte) {
+	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
+		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
+
+	}
+
+	cd := ClientData{
+		Typ:       ceremonyType,
+		Origin:    localAppID,
+		Challenge: challenge,
+	}
+
+	cdJson, _ := json.Marshal(cd)
+
+	clientData := base64.URLEncoding.EncodeToString(cdJson)
+	return clientData, cdJson
 }
 
 // GenerateAuthenticationSig appends the clientData to the authData and uses the privateKey's public Key to sign it

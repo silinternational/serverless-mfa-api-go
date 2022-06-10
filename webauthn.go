@@ -110,8 +110,6 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	fmt.Printf("\nUser From Context: %+v\n", user)
-
 	credential, err := user.FinishLogin(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)

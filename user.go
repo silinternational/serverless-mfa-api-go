@@ -223,6 +223,11 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
+		var protocolError *protocol.Error
+		if ok := errors.As(err, protocolError); ok {
+			return "", fmt.Errorf("unable to parse credential creation response body: %v -- %s\n body: %s", protocolError,
+				protocolError.DevInfo, string(body))
+		}
 		return "", fmt.Errorf("unable to parse credential creation response body: %w", err)
 	}
 
@@ -349,7 +354,7 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 		// decryption process includes extra/invalid \x00 character, so trim it out
 		// at some point early in dev this was needed, but in testing recently it doesn't
 		// make a difference. Leaving commented out for now until we know 100% it's not needed
-		//credId = bytes.Trim(credId, "\x00")
+		// credId = bytes.Trim(credId, "\x00")
 
 		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
 		if err != nil {
@@ -363,7 +368,7 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			return nil
 		}
 		// Same as credId
-		//pubKey = bytes.Trim(pubKey, "\x00")
+		// pubKey = bytes.Trim(pubKey, "\x00")
 
 		decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
 		if err != nil {

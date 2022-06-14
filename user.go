@@ -224,7 +224,7 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
 		var protocolError *protocol.Error
-		if ok := errors.As(err, protocolError); ok {
+		if errors.As(err, &protocolError) {
 			return "", fmt.Errorf("unable to parse credential creation response body: %v -- %s\n body: %s", protocolError,
 				protocolError.DevInfo, string(body))
 		}

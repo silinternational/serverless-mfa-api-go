@@ -120,6 +120,50 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	u.Credentials = append(u.Credentials, credential)
 
 	// encrypt credentials for storage
+	return u.encryptAndStoreCredentials()
+}
+
+func (u *DynamoUser) DeleteCredential(credID string) (error, int) {
+	// load to be sure working with latest data
+	err := u.Load()
+	if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	foundCred := false
+	remainingCreds := []webauthn.Credential{}
+
+	// check existing credentials to make sure this one doesn't already exist
+	for _, c := range u.Credentials {
+		if string(c.ID) == credID {
+			foundCred = true
+			continue
+		}
+		remainingCreds = append(remainingCreds, c)
+	}
+
+	// If the user has no more credentials, delete the whole user
+	if len(remainingCreds) < 1 {
+		if err := u.Delete(); err != nil {
+			return err, http.StatusInternalServerError
+		}
+		return nil, http.StatusNoContent
+	}
+
+	if !foundCred {
+		err := fmt.Errorf("credential not found with id: %s", credID)
+		return err, http.StatusNotFound
+	}
+
+	u.Credentials = remainingCreds
+
+	if err := u.encryptAndStoreCredentials(); err != nil {
+		return err, http.StatusInternalServerError
+	}
+	return nil, http.StatusNoContent
+}
+
+func (u *DynamoUser) encryptAndStoreCredentials() error {
 	js, err := json.Marshal(u.Credentials)
 	if err != nil {
 		return err

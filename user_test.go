@@ -114,7 +114,7 @@ func Test_User_DeleteCredential(t *testing.T) {
 		{
 			name:            "one credential gets deleted",
 			user:            testUser1,
-			credID:          string(testUser1.Credentials[0].ID),
+			credID:          hashAndEncodeKeyHandle(testUser1.Credentials[0].ID),
 			wantStatus:      http.StatusNoContent,
 			wantNotContains: testUser1.ID,
 			wantContains:    []string{"Count: 1", testUser2.ID},
@@ -122,7 +122,7 @@ func Test_User_DeleteCredential(t *testing.T) {
 		{
 			name:         "two credentials and one is deleted",
 			user:         testUser2,
-			credID:       string(testUser2.Credentials[0].ID),
+			credID:       hashAndEncodeKeyHandle(testUser2.Credentials[0].ID),
 			wantStatus:   http.StatusNoContent,
 			wantContains: []string{"Count: 1", testUser2.ID},
 			wantCredIDs:  [][]byte{testUser2.Credentials[1].ID},

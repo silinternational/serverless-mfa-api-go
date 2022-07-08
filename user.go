@@ -123,7 +123,11 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	return u.encryptAndStoreCredentials()
 }
 
-func (u *DynamoUser) DeleteCredential(credID string) (error, int) {
+// DeleteCredential expects a hashed-encoded credential id.
+//  It finds a matching credential for that user and saves the user
+//  without that credential included.
+//  If the user has no more credentials, then the whole user is deleted.
+func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// load to be sure working with latest data
 	err := u.Load()
 	if err != nil {
@@ -135,7 +139,7 @@ func (u *DynamoUser) DeleteCredential(credID string) (error, int) {
 
 	// check existing credentials to make sure this one doesn't already exist
 	for _, c := range u.Credentials {
-		if string(c.ID) == credID {
+		if hashAndEncodeKeyHandle(c.ID) == credIDHash {
 			foundCred = true
 			continue
 		}
@@ -151,7 +155,7 @@ func (u *DynamoUser) DeleteCredential(credID string) (error, int) {
 	}
 
 	if !foundCred {
-		err := fmt.Errorf("credential not found with id: %s", credID)
+		err := fmt.Errorf("credential not found with id: %s", credIDHash)
 		return err, http.StatusNotFound
 	}
 

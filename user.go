@@ -131,7 +131,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// load to be sure working with latest data
 	err := u.Load()
 	if err != nil {
-		return err, http.StatusInternalServerError
+		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
 	}
 
 	remainingCreds := []webauthn.Credential{}
@@ -147,7 +147,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// If the user has no more credentials, delete the whole user
 	if len(remainingCreds) < 1 {
 		if err := u.Delete(); err != nil {
-			return err, http.StatusInternalServerError
+			return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
 		}
 		return nil, http.StatusNoContent
 	}
@@ -160,7 +160,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	u.Credentials = remainingCreds
 
 	if err := u.encryptAndStoreCredentials(); err != nil {
-		return err, http.StatusInternalServerError
+		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
 	}
 	return nil, http.StatusNoContent
 }

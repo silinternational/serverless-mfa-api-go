@@ -14,12 +14,8 @@ import (
 func Test_User_DeleteCredential(t *testing.T) {
 	assert := require.New(t)
 
-	// Needed for the envCfg and the storage
 	awsConfig := testAwsConfig()
-
-	// Needed for storage
 	envCfg := testEnvConfig(awsConfig)
-
 	localStorage, err := NewStorage(&awsConfig)
 	assert.NoError(err, "failed creating local storage for test")
 
@@ -47,7 +43,6 @@ func Test_User_DeleteCredential(t *testing.T) {
 	assert.NoError(err, "failed creating new webAuthnClient for test")
 
 	const userID = "10345678-1234-1234-1234-123456789012"
-
 	cred11 := webauthn.Credential{ID: []byte("11")}
 	cred21 := webauthn.Credential{ID: []byte("21")}
 	cred22 := webauthn.Credential{ID: []byte("22")}
@@ -131,14 +126,12 @@ func Test_User_DeleteCredential(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err, status := tt.user.DeleteCredential(tt.credID)
-			if tt.wantErrContains != "" {
-				assert.Error(err, "expected an error but didn't get one")
-				assert.Contains(err.Error(), tt.wantErrContains, "incorrect error")
-			}
 
 			assert.Equal(tt.wantStatus, status, "incorrect http status")
 
 			if tt.wantErrContains != "" {
+				assert.Error(err, "expected an error but didn't get one")
+				assert.Contains(err.Error(), tt.wantErrContains, "incorrect error")
 				return
 			}
 
@@ -157,10 +150,11 @@ func Test_User_DeleteCredential(t *testing.T) {
 				assert.Contains(resultsStr, w, "incorrect db results missing string")
 			}
 
-			if len(tt.wantCredIDs) < 1 {
-				return
+			gotUser := DynamoUser{
+				ID:     tt.user.ID,
+				ApiKey: tt.user.ApiKey,
+				Store:  localStorage,
 			}
-			gotUser := tt.user
 			gotUser.Load()
 
 			assert.Len(gotUser.Credentials, len(tt.wantCredIDs), "incorrect remaining credential ids")

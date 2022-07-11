@@ -134,13 +134,11 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 		return err, http.StatusInternalServerError
 	}
 
-	foundCred := false
 	remainingCreds := []webauthn.Credential{}
 
 	// check existing credentials to make sure this one doesn't already exist
 	for _, c := range u.Credentials {
 		if hashAndEncodeKeyHandle(c.ID) == credIDHash {
-			foundCred = true
 			continue
 		}
 		remainingCreds = append(remainingCreds, c)
@@ -154,7 +152,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 		return nil, http.StatusNoContent
 	}
 
-	if !foundCred {
+	if len(remainingCreds) == len(u.Credentials) {
 		err := fmt.Errorf("credential not found with id: %s", credIDHash)
 		return err, http.StatusNotFound
 	}

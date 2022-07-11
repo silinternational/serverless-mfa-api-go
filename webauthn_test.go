@@ -608,7 +608,6 @@ func Test_FinishLogin(t *testing.T) {
 	assert := require.New(t)
 
 	awsConfig := testAwsConfig()
-
 	localStorage, err := NewStorage(&awsConfig)
 	assert.NoError(err, "failed creating local storage for test")
 

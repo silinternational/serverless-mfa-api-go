@@ -147,20 +147,20 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// If the user has no more credentials, delete the whole user
 	if len(remainingCreds) < 1 {
 		if err := u.Delete(); err != nil {
-			return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
+			return fmt.Errorf("error deleting a user without any credentials: %w", err), http.StatusInternalServerError
 		}
 		return nil, http.StatusNoContent
 	}
 
 	if len(remainingCreds) == len(u.Credentials) {
-		err := fmt.Errorf("credential not found with id: %s", credIDHash)
+		err := fmt.Errorf("error in DeleteCredential. Credential not found with id: %s", credIDHash)
 		return err, http.StatusNotFound
 	}
 
 	u.Credentials = remainingCreds
 
 	if err := u.encryptAndStoreCredentials(); err != nil {
-		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
+		return fmt.Errorf("error in DeleteCredential storing remaining credentials: %w", err), http.StatusInternalServerError
 	}
 	return nil, http.StatusNoContent
 }

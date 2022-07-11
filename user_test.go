@@ -102,7 +102,7 @@ func Test_User_DeleteCredential(t *testing.T) {
 			name:            "one credential but bad credential ID",
 			user:            testUser1,
 			credID:          "missing",
-			wantErrContains: "credential not found with id: missing",
+			wantErrContains: "Credential not found with id: missing",
 			wantStatus:      http.StatusNotFound,
 			wantContains:    []string{testUser1.ID},
 		},

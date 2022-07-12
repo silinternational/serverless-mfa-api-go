@@ -120,6 +120,52 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	u.Credentials = append(u.Credentials, credential)
 
 	// encrypt credentials for storage
+	return u.encryptAndStoreCredentials()
+}
+
+// DeleteCredential expects a hashed-encoded credential id.
+//  It finds a matching credential for that user and saves the user
+//  without that credential included.
+//  If the user has no more credentials, then the whole user is deleted.
+func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
+	// load to be sure working with latest data
+	err := u.Load()
+	if err != nil {
+		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
+	}
+
+	remainingCreds := []webauthn.Credential{}
+
+	// check existing credentials to make sure this one doesn't already exist
+	for _, c := range u.Credentials {
+		if hashAndEncodeKeyHandle(c.ID) == credIDHash {
+			continue
+		}
+		remainingCreds = append(remainingCreds, c)
+	}
+
+	// If the user has no more credentials, delete the whole user
+	if len(remainingCreds) < 1 {
+		if err := u.Delete(); err != nil {
+			return fmt.Errorf("error deleting a user without any credentials: %w", err), http.StatusInternalServerError
+		}
+		return nil, http.StatusNoContent
+	}
+
+	if len(remainingCreds) == len(u.Credentials) {
+		err := fmt.Errorf("error in DeleteCredential. Credential not found with id: %s", credIDHash)
+		return err, http.StatusNotFound
+	}
+
+	u.Credentials = remainingCreds
+
+	if err := u.encryptAndStoreCredentials(); err != nil {
+		return fmt.Errorf("error in DeleteCredential storing remaining credentials: %w", err), http.StatusInternalServerError
+	}
+	return nil, http.StatusNoContent
+}
+
+func (u *DynamoUser) encryptAndStoreCredentials() error {
 	js, err := json.Marshal(u.Credentials)
 	if err != nil {
 		return err

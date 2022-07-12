@@ -5,77 +5,11 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
 )
 
 const TestTableName = "WebAuthn"
 const DisableSSL = true
-
-func initDb(storage *Storage) error {
-	var err error
-	if storage == nil {
-		storage, err = NewStorage(&aws.Config{
-			Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
-			Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
-			DisableSSL: aws.Bool(true),
-		})
-		if err != nil {
-			return err
-		}
-	}
-
-	// attempt to delete tables in case already exists
-	tables := map[string]string{"WebAuthn": "uuid", "ApiKey": "value"}
-	for name, _ := range tables {
-		deleteTable := &dynamodb.DeleteTableInput{
-			TableName: aws.String(name),
-		}
-		_, err = storage.client.DeleteTable(deleteTable)
-		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				case dynamodb.ErrCodeResourceNotFoundException:
-					// this is fine
-				default:
-					return aerr
-				}
-			} else {
-				return err
-			}
-		}
-	}
-
-	// create tables
-	for table, attr := range tables {
-		createTable := &dynamodb.CreateTableInput{
-			AttributeDefinitions: []*dynamodb.AttributeDefinition{
-				{
-					AttributeName: aws.String(attr),
-					AttributeType: aws.String("S"),
-				},
-			},
-			KeySchema: []*dynamodb.KeySchemaElement{
-				{
-					AttributeName: aws.String(attr),
-					KeyType:       aws.String("HASH"),
-				},
-			},
-			ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
-				ReadCapacityUnits:  aws.Int64(3),
-				WriteCapacityUnits: aws.Int64(3),
-			},
-			TableName: aws.String(table),
-		}
-		_, err = storage.client.CreateTable(createTable)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
 
 func TestStorage_StoreLoad(t *testing.T) {
 	err := initDb(nil)

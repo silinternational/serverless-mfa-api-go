@@ -8,22 +8,14 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/duo-labs/webauthn/webauthn"
-	"github.com/stretchr/testify/require"
 )
 
-func Test_User_DeleteCredential(t *testing.T) {
-	assert := require.New(t)
+func (ms *MfaSuite) Test_User_DeleteCredential() {
 
 	awsConfig := testAwsConfig()
 	envCfg := testEnvConfig(awsConfig)
 	localStorage, err := NewStorage(&awsConfig)
-	assert.NoError(err, "failed creating local storage for test")
-
-	err = initDb(nil)
-	if err != nil {
-		t.Error(err)
-		return
-	}
+	ms.NoError(err, "failed creating local storage for test")
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
 	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
@@ -40,7 +32,7 @@ func Test_User_DeleteCredential(t *testing.T) {
 		Debug:         true,
 	})
 
-	assert.NoError(err, "failed creating new webAuthnClient for test")
+	ms.NoError(err, "failed creating new webAuthnClient for test")
 
 	const userID = "10345678-1234-1234-1234-123456789012"
 	cred11 := webauthn.Credential{ID: []byte("11")}
@@ -53,7 +45,7 @@ func Test_User_DeleteCredential(t *testing.T) {
 		Store:          localStorage,
 		WebAuthnClient: web,
 		ApiKey:         apiKey,
-		APIKeyValue:    apiKey.Key,
+		ApiKeyValue:    apiKey.Key,
 		Credentials:    []webauthn.Credential{},
 	}
 
@@ -68,7 +60,7 @@ func Test_User_DeleteCredential(t *testing.T) {
 	testUser2.Credentials = []webauthn.Credential{cred21, cred22}
 
 	for _, u := range []DynamoUser{testUser0, testUser1, testUser2} {
-		assert.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
+		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
 	}
 
 	params := &dynamodb.ScanInput{
@@ -76,10 +68,10 @@ func Test_User_DeleteCredential(t *testing.T) {
 	}
 
 	results, err := localStorage.client.Scan(params)
-	assert.NoError(err, "failed to scan storage for results")
+	ms.NoError(err, "failed to scan storage for results")
 
 	resultsStr := formatDynamoResults(results)
-	assert.Contains(resultsStr, "Count: 3", "initial data wasn't saved properly")
+	ms.Contains(resultsStr, "Count: 3", "initial data wasn't saved properly")
 
 	tests := []struct {
 		name            string
@@ -124,30 +116,30 @@ func Test_User_DeleteCredential(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+		ms.T().Run(tt.name, func(t *testing.T) {
 			err, status := tt.user.DeleteCredential(tt.credID)
 
-			assert.Equal(tt.wantStatus, status, "incorrect http status")
+			ms.Equal(tt.wantStatus, status, "incorrect http status")
 
 			if tt.wantErrContains != "" {
-				assert.Error(err, "expected an error but didn't get one")
-				assert.Contains(err.Error(), tt.wantErrContains, "incorrect error")
+				ms.Error(err, "expected an error but didn't get one")
+				ms.Contains(err.Error(), tt.wantErrContains, "incorrect error")
 				return
 			}
 
-			assert.NoError(err, "unexpected error")
+			ms.NoError(err, "unexpected error")
 
 			results, err := localStorage.client.Scan(params)
-			assert.NoError(err, "failed to scan storage for results")
+			ms.Error(err, "failed to scan storage for results")
 
 			resultsStr := formatDynamoResults(results)
 
 			if tt.wantNotContains != "" {
-				assert.NotContainsf(resultsStr, tt.wantNotContains, "incorrect db results contain unexpected string")
+				ms.NotContainsf(resultsStr, tt.wantNotContains, "incorrect db results contain unexpected string")
 			}
 
 			for _, w := range tt.wantContains {
-				assert.Contains(resultsStr, w, "incorrect db results missing string")
+				ms.Contains(resultsStr, w, "incorrect db results missing string")
 			}
 
 			gotUser := DynamoUser{
@@ -157,10 +149,10 @@ func Test_User_DeleteCredential(t *testing.T) {
 			}
 			gotUser.Load()
 
-			assert.Len(gotUser.Credentials, len(tt.wantCredIDs), "incorrect remaining credential ids")
+			ms.Len(gotUser.Credentials, len(tt.wantCredIDs), "incorrect remaining credential ids")
 
 			for i, w := range tt.wantCredIDs {
-				assert.Equal(string(w), string(gotUser.Credentials[i].ID), "incorrect credential id")
+				ms.Equal(string(w), string(gotUser.Credentials[i].ID), "incorrect credential id")
 			}
 		})
 	}

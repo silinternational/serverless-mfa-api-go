@@ -35,9 +35,9 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 	ms.NoError(err, "failed creating new webAuthnClient for test")
 
 	const userID = "10345678-1234-1234-1234-123456789012"
-	cred11 := webauthn.Credential{ID: []byte("C11")}
+	cred10 := webauthn.Credential{ID: []byte("C10")}
+	cred20 := webauthn.Credential{ID: []byte("C20")}
 	cred21 := webauthn.Credential{ID: []byte("C21")}
-	cred22 := webauthn.Credential{ID: []byte("C22")}
 
 	testUser0 := DynamoUser{
 		ID:             "10345678-1234-1234-1234-123456789012",
@@ -52,12 +52,12 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 	testUser1 := testUser0
 	testUser1.ID = "11345678-1234-1234-1234-123456789012"
 	testUser1.Name = "Oscar_OneCredential"
-	testUser1.Credentials = []webauthn.Credential{cred11}
+	testUser1.Credentials = []webauthn.Credential{cred10}
 
 	testUser2 := testUser0
 	testUser2.ID = "12345678-1234-1234-1234-123456789012"
 	testUser2.Name = "Tony_TwoCredentials"
-	testUser2.Credentials = []webauthn.Credential{cred21, cred22}
+	testUser2.Credentials = []webauthn.Credential{cred20, cred21}
 
 	for _, u := range []DynamoUser{testUser0, testUser1, testUser2} {
 		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
@@ -130,7 +130,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			ms.NoError(err, "unexpected error")
 
 			results, err := localStorage.client.Scan(params)
-			ms.Error(err, "failed to scan storage for results")
+			ms.NoError(err, "failed to scan storage for results")
 
 			resultsStr := formatDynamoResults(results)
 
@@ -156,7 +156,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			}
 
 			for _, g := range gotUser.Credentials {
-				assert.NotEqual(string(tt.dontWantCredID), string(g.ID), "unexpected credential id")
+				ms.NotEqual(string(tt.dontWantCredID), string(g.ID), "unexpected credential id")
 			}
 		})
 	}

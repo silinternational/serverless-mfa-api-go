@@ -15,6 +15,8 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
+const CredIDParam = "credential-id"
+
 // ApiMeta holds metadata about the calling service for use in WebAuthn responses.
 // Since this service/api is consumed by multiple sources this information cannot
 // be stored in the envConfig
@@ -139,6 +141,30 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, nil, http.StatusNoContent)
+}
+
+func DeleteCredential(w http.ResponseWriter, r *http.Request) {
+	user, err := getUserFromContext(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusBadRequest)
+		log.Printf("error getting user from context: %s\n", err)
+		return
+	}
+
+	credIDs, ok := r.URL.Query()[CredIDParam]
+	if !ok || len(credIDs) < 1 {
+		err := fmt.Errorf("%s query string parameter not provided to DeleteCredential", CredIDParam)
+		jsonResponse(w, err, http.StatusBadRequest)
+		log.Printf("%s\n", err)
+		return
+	}
+
+	err, status := user.DeleteCredential(credIDs[0])
+	if err != nil {
+		log.Printf("error deleting user credential: %s", err)
+	}
+
+	jsonResponse(w, err, status)
 }
 
 type simpleError struct {
@@ -300,7 +326,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 	user := NewDynamoUser(apiMeta, localStorage, apiKey, webAuthnClient)
 
 	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
-	if user.APIKeyValue != "" && user.APIKeyValue != apiKey.Key {
+	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {
 		log.Printf("api key %s tried to access user %s but that user does not belong to that api key", apiKey.Key, user.ID)
 		return nil, fmt.Errorf("user does not exist")
 	}

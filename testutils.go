@@ -12,7 +12,6 @@ import (
 	"math/big"
 	"os"
 	"strings"
-	"testing"
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -21,8 +20,6 @@ import (
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncbor"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/stretchr/testify/require"
-	"github.com/stretchr/testify/suite"
 )
 
 const (
@@ -35,26 +32,6 @@ const (
 	AttObjFlagAttestedCredData_AT = 64
 	AttObjFlagExtensionData_ED    = 128
 )
-
-type MfaSuite struct {
-	suite.Suite
-	*require.Assertions
-}
-
-func (ms *MfaSuite) SetupTest() {
-	ms.Assertions = require.New(ms.T())
-}
-
-// Test_ModelSuite runs the test suite
-func Test_ModelSuite(t *testing.T) {
-	ms := &MfaSuite{}
-	if err := initDb(nil); err != nil {
-		t.Errorf("error initializing test database: %s", err)
-		return
-	}
-
-	suite.Run(t, ms)
-}
 
 func initDb(storage *Storage) error {
 	var err error

@@ -126,7 +126,6 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 // DeleteCredential expects a hashed-encoded credential id.
 //  It finds a matching credential for that user and saves the user
 //  without that credential included.
-//  If the user has no more credentials, then the whole user is deleted.
 func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// load to be sure working with latest data
 	err := u.Load()

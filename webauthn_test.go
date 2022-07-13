@@ -818,99 +818,35 @@ func testAuthnMiddleware(next http.Handler) http.Handler {
 }
 
 func (ms *MfaSuite) Test_DeleteCredential() {
-	awsConfig := testAwsConfig()
-	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(&awsConfig)
-	ms.NoError(err, "failed creating local storage for test")
 
-	const RPDisplayName = "TestRPName"
-	const RPID = "111.11.11.11"
+	baseConfigs := getDBConfig(ms)
 
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: RPDisplayName, // Display Name for your site
-		RPID:          RPID,          // Generally the FQDN for your site
-		Debug:         true,
-	})
-
-	ms.NoError(err, "failed creating new webAuthnClient for test")
-
-	cred10 := webauthn.Credential{ID: []byte("C10")}
-	cred20 := webauthn.Credential{ID: []byte("C20")}
-	cred21 := webauthn.Credential{ID: []byte("C21")}
-
-	apiKey0 := ApiKey{
-		Key:         "1034567890123456",
-		Secret:      "E086600E-3DBF-4C23-A0DA-9C55D448",
-		Store:       localStorage,
-		ActivatedAt: 1,
-	}
-
-	testUser0 := DynamoUser{
-		ID:             apiKey0.Secret,
-		Name:           "Nancy_NoCredential",
-		DisplayName:    "Nancy NoCredential",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey0,
-		ApiKeyValue:    apiKey0.Key,
-		Credentials:    []webauthn.Credential{},
-	}
-
-	apiKey1 := ApiKey{
-		Key:         "1134567890123456",
-		Secret:      "E186600E-3DBF-4C23-A0DA-9C55D448",
-		Store:       localStorage,
-		ActivatedAt: 1,
-	}
-
-	testUser1 := testUser0
-	testUser1.ID = apiKey1.Secret
-	testUser1.Name = "Oscar_OneCredential"
-	testUser1.DisplayName = "Oscar OneCredential"
-	testUser1.ApiKey = apiKey1
-	testUser1.ApiKeyValue = apiKey1.Key
-	testUser1.Credentials = []webauthn.Credential{cred10}
-
-	apiKey2 := ApiKey{
-		Key:         "1234567890123456",
-		Secret:      "E286600E-3DBF-4C23-A0DA-9C55D448",
-		Store:       localStorage,
-		ActivatedAt: 1,
-	}
-
-	testUser2 := testUser0
-	testUser2.ID = apiKey2.Secret
-	testUser2.Name = "Tony_TwoCredentials"
-	testUser2.DisplayName = "Tony TwoCredentials"
-	testUser1.ApiKey = apiKey2
-	testUser1.ApiKeyValue = apiKey2.Key
-	testUser2.Credentials = []webauthn.Credential{cred20, cred21}
-
-	apiKeys := []ApiKey{apiKey0, apiKey1, apiKey2}
+	users := getTestWebauthnUsers(ms, baseConfigs)
+	testUser0, testUser1, testUser2 := users[0], users[1], users[2]
 
 	for i, u := range []DynamoUser{testUser0, testUser1, testUser2} {
-		ms.NoError(apiKeys[i].Hash(), "error trying to hash apikey: %d", i)
-		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
-		ms.NoError(apiKeys[i].Store.Store(envCfg.ApiKeyTable, apiKeys[i]), "failed saving initial apikey")
+		ms.NoError(u.ApiKey.Hash(), "error trying to hash apikey: %d", i)
+		ms.NoError(u.encryptAndStoreCredentials(), "failed updating test user")
+		ms.NoError(u.ApiKey.Store.Store(baseConfigs.EnvConfig.ApiKeyTable, u.ApiKey), "failed saving initial apikey")
 	}
 
 	params := &dynamodb.ScanInput{
-		TableName: aws.String(envCfg.ApiKeyTable),
+		TableName: aws.String(baseConfigs.EnvConfig.ApiKeyTable),
 	}
 
-	results, err := localStorage.client.Scan(params)
+	results, err := baseConfigs.Storage.client.Scan(params)
 	ms.NoError(err, "failed to scan ApiKey storage for results")
 
 	resultsStr := formatDynamoResults(results)
 	ms.Contains(resultsStr, "Count: 3", "initial ApiKey data wasn't saved properly")
 
-	params.TableName = aws.String(envCfg.WebauthnTable)
+	params.TableName = aws.String(baseConfigs.EnvConfig.WebauthnTable)
 
-	results, err = localStorage.client.Scan(params)
+	results, err = baseConfigs.Storage.client.Scan(params)
 	ms.NoError(err, "failed to scan Webauthn storage for results")
 
 	resultsStr = formatDynamoResults(results)
-	ms.Contains(resultsStr, "Count: 3", "initial Webauthn data wasn't saved properly")
+	ms.Contains(resultsStr, "Count: 3", "updated Webauthn data wasn't saved properly")
 
 	tests := []struct {
 		name            string
@@ -936,7 +872,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			user:           testUser2,
 			credID:         hashAndEncodeKeyHandle(testUser2.Credentials[0].ID),
 			wantStatus:     http.StatusNoContent,
-			wantContains:   []string{"Count: 3", testUser0.ID, testUser1.ID, testUser2.ID},
+			wantContains:   []string{testUser0.ID, testUser1.ID, testUser2.ID},
 			wantCredIDs:    [][]byte{testUser2.Credentials[1].ID},
 			dontWantCredID: testUser2.Credentials[0].ID,
 		},
@@ -948,15 +884,15 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 
 			request.Header.Set("x-mfa-apikey", tt.user.ApiKeyValue)
 			request.Header.Set("x-mfa-apisecret", tt.user.ApiKey.Secret)
-			request.Header.Set("x-mfa-RPDisplayName", RPDisplayName)
-			request.Header.Set("x-mfa-RPID", RPID)
+			request.Header.Set("x-mfa-RPDisplayName", "TestRPName")
+			request.Header.Set("x-mfa-RPID", "111.11.11.11")
 			request.Header.Set("x-mfa-UserUUID", tt.user.ID)
 			request.Header.Set("x-mfa-Username", tt.user.Name)
 			request.Header.Set("x-mfa-UserDisplayName", tt.user.DisplayName)
 
 			ctxWithUser := context.WithValue(request.Context(), UserContextKey, &tt.user)
 			request = request.WithContext(ctxWithUser)
-			localStorage.Store(envConfig.WebauthnTable, ctxWithUser)
+			baseConfigs.Storage.Store(baseConfigs.EnvConfig.WebauthnTable, ctxWithUser)
 
 			response := httptest.NewRecorder()
 			Router().ServeHTTP(response, request)
@@ -966,7 +902,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 				return
 			}
 
-			results, err := localStorage.client.Scan(params)
+			results, err := baseConfigs.Storage.client.Scan(params)
 			ms.NoError(err, "failed to scan storage for results")
 
 			resultsStr := formatDynamoResults(results)
@@ -975,9 +911,6 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 				ms.Contains(resultsStr, w, "incorrect db results missing string")
 			}
 
-			if len(tt.wantCredIDs) < 1 {
-				return
-			}
 			gotUser := tt.user
 			gotUser.Load()
 
@@ -985,14 +918,6 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 
 			for i, w := range tt.wantCredIDs {
 				ms.Equal(string(w), string(gotUser.Credentials[i].ID), "incorrect credential id")
-			}
-
-			if len(tt.dontWantCredID) == 0 {
-				return
-			}
-
-			for _, g := range gotUser.Credentials {
-				ms.NotEqual(string(tt.dontWantCredID), string(g.ID), "unexpected credential id")
 			}
 
 			if len(tt.dontWantCredID) == 0 {

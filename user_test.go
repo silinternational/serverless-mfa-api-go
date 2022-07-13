@@ -1,77 +1,23 @@
 package mfa
 
 import (
-	"encoding/base64"
 	"net/http"
 	"testing"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/duo-labs/webauthn/webauthn"
 )
 
 func (ms *MfaSuite) Test_User_DeleteCredential() {
 
-	awsConfig := testAwsConfig()
-	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(&awsConfig)
-	ms.NoError(err, "failed creating local storage for test")
+	baseConfigs := getDBConfig(ms)
 
-	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
-	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
+	users := getTestWebauthnUsers(ms, baseConfigs)
+	testUser0, testUser1, testUser2 := users[0], users[1], users[2]
 
-	apiKey := ApiKey{
-		Key:    apiKeyKey,
-		Secret: apiKeySec,
-		Store:  localStorage,
+	dbParams := &dynamodb.ScanInput{
+		TableName: aws.String(baseConfigs.EnvConfig.WebauthnTable),
 	}
-
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName",   // Display Name for your site
-		RPID:          "111.11.11.11", // Generally the FQDN for your site
-		Debug:         true,
-	})
-
-	ms.NoError(err, "failed creating new webAuthnClient for test")
-
-	const userID = "10345678-1234-1234-1234-123456789012"
-	cred10 := webauthn.Credential{ID: []byte("C10")}
-	cred20 := webauthn.Credential{ID: []byte("C20")}
-	cred21 := webauthn.Credential{ID: []byte("C21")}
-
-	testUser0 := DynamoUser{
-		ID:             "10345678-1234-1234-1234-123456789012",
-		Name:           "Nancy_NoCredential",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
-		Credentials:    []webauthn.Credential{},
-	}
-
-	testUser1 := testUser0
-	testUser1.ID = "11345678-1234-1234-1234-123456789012"
-	testUser1.Name = "Oscar_OneCredential"
-	testUser1.Credentials = []webauthn.Credential{cred10}
-
-	testUser2 := testUser0
-	testUser2.ID = "12345678-1234-1234-1234-123456789012"
-	testUser2.Name = "Tony_TwoCredentials"
-	testUser2.Credentials = []webauthn.Credential{cred20, cred21}
-
-	for _, u := range []DynamoUser{testUser0, testUser1, testUser2} {
-		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
-	}
-
-	params := &dynamodb.ScanInput{
-		TableName: aws.String(envCfg.WebauthnTable),
-	}
-
-	results, err := localStorage.client.Scan(params)
-	ms.NoError(err, "failed to scan storage for results")
-
-	resultsStr := formatDynamoResults(results)
-	ms.Contains(resultsStr, "Count: 3", "initial data wasn't saved properly")
 
 	tests := []struct {
 		name            string
@@ -129,7 +75,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 
 			ms.NoError(err, "unexpected error")
 
-			results, err := localStorage.client.Scan(params)
+			results, err := baseConfigs.Storage.client.Scan(dbParams)
 			ms.NoError(err, "failed to scan storage for results")
 
 			resultsStr := formatDynamoResults(results)
@@ -141,7 +87,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			gotUser := DynamoUser{
 				ID:     tt.user.ID,
 				ApiKey: tt.user.ApiKey,
-				Store:  localStorage,
+				Store:  baseConfigs.Storage,
 			}
 			gotUser.Load()
 

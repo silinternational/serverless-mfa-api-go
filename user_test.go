@@ -43,9 +43,9 @@ func Test_User_DeleteCredential(t *testing.T) {
 	assert.NoError(err, "failed creating new webAuthnClient for test")
 
 	const userID = "10345678-1234-1234-1234-123456789012"
-	cred11 := webauthn.Credential{ID: []byte("11")}
-	cred21 := webauthn.Credential{ID: []byte("21")}
-	cred22 := webauthn.Credential{ID: []byte("22")}
+	cred11 := webauthn.Credential{ID: []byte("C11")}
+	cred21 := webauthn.Credential{ID: []byte("C21")}
+	cred22 := webauthn.Credential{ID: []byte("C22")}
 
 	testUser0 := DynamoUser{
 		ID:             "10345678-1234-1234-1234-123456789012",
@@ -88,38 +88,37 @@ func Test_User_DeleteCredential(t *testing.T) {
 		wantErrContains string
 		wantStatus      int
 		wantContains    []string
-		wantNotContains string
 		wantCredIDs     [][]byte
+		dontWantCredID  []byte
 	}{
 		{
 			name:            "no credentials",
 			user:            testUser0,
 			credID:          "missing",
-			wantStatus:      http.StatusNoContent,
-			wantNotContains: testUser0.ID,
+			wantStatus:      http.StatusNotFound,
+			wantErrContains: "No webauthn credentials available.",
 		},
 		{
 			name:            "one credential but bad credential ID",
 			user:            testUser1,
 			credID:          "missing",
 			wantErrContains: "Credential not found with id: missing",
+			wantCredIDs:     [][]byte{testUser1.Credentials[0].ID},
 			wantStatus:      http.StatusNotFound,
-			wantContains:    []string{testUser1.ID},
 		},
 		{
-			name:            "one credential gets deleted",
-			user:            testUser1,
-			credID:          hashAndEncodeKeyHandle(testUser1.Credentials[0].ID),
-			wantStatus:      http.StatusNoContent,
-			wantNotContains: testUser1.ID,
-			wantContains:    []string{"Count: 1", testUser2.ID},
+			name:           "one credential gets deleted",
+			user:           testUser1,
+			credID:         hashAndEncodeKeyHandle(testUser1.Credentials[0].ID),
+			wantStatus:     http.StatusNoContent,
+			dontWantCredID: testUser1.Credentials[0].ID,
 		},
 		{
 			name:         "two credentials and one is deleted",
 			user:         testUser2,
 			credID:       hashAndEncodeKeyHandle(testUser2.Credentials[0].ID),
 			wantStatus:   http.StatusNoContent,
-			wantContains: []string{"Count: 1", testUser2.ID},
+			wantContains: []string{"Count: 3", testUser0.ID, testUser1.ID, testUser2.ID},
 			wantCredIDs:  [][]byte{testUser2.Credentials[1].ID},
 		},
 	}
@@ -142,10 +141,6 @@ func Test_User_DeleteCredential(t *testing.T) {
 
 			resultsStr := formatDynamoResults(results)
 
-			if tt.wantNotContains != "" {
-				assert.NotContainsf(resultsStr, tt.wantNotContains, "incorrect db results contain unexpected string")
-			}
-
 			for _, w := range tt.wantContains {
 				assert.Contains(resultsStr, w, "incorrect db results missing string")
 			}
@@ -161,6 +156,14 @@ func Test_User_DeleteCredential(t *testing.T) {
 
 			for i, w := range tt.wantCredIDs {
 				assert.Equal(string(w), string(gotUser.Credentials[i].ID), "incorrect credential id")
+			}
+
+			if len(tt.dontWantCredID) == 0 {
+				return
+			}
+
+			for _, g := range gotUser.Credentials {
+				assert.NotEqual(string(tt.dontWantCredID), string(g.ID), "unexpected credential id")
 			}
 		})
 	}

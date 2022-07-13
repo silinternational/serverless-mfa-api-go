@@ -134,22 +134,19 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
 	}
 
+	if len(u.Credentials) == 0 {
+		err := fmt.Errorf("error in DeleteCredential. No webauthn credentials available.")
+		return err, http.StatusNotFound
+	}
+
 	remainingCreds := []webauthn.Credential{}
 
-	// check existing credentials to make sure this one doesn't already exist
+	// find the requested credential among the user's current webauthn credentials
 	for _, c := range u.Credentials {
 		if hashAndEncodeKeyHandle(c.ID) == credIDHash {
 			continue
 		}
 		remainingCreds = append(remainingCreds, c)
-	}
-
-	// If the user has no more credentials, delete the whole user
-	if len(remainingCreds) < 1 {
-		if err := u.Delete(); err != nil {
-			return fmt.Errorf("error deleting a user without any credentials: %w", err), http.StatusInternalServerError
-		}
-		return nil, http.StatusNoContent
 	}
 
 	if len(remainingCreds) == len(u.Credentials) {

@@ -69,6 +69,10 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		mfa.FinishRegistration(w, r)
 	case "delete /webauthn/user":
 		mfa.DeleteUser(w, r)
+	// This expects a query string param like `?credential-id=<hashed-encoded-credential-id>
+	// where the id was previously returned as the key_handle_hash from the FinishRegistration call
+	case "delete /webauthn/credential":
+		mfa.DeleteCredential(w, r)
 	default:
 		return clientError(http.StatusNotFound, fmt.Sprintf("The requested route is not supported: %s", route))
 	}

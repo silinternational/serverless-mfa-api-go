@@ -75,6 +75,13 @@ var routes = []route{
 		"/webauthn/user",
 		mfa.DeleteUser,
 	},
+	{ // This expects a query string param like `?credential-id=<hashed-encoded-credential-id>
+		// where the id was previously returned as the key_handle_hash from the FinishRegistration call
+		"DeleteCredential",
+		"DELETE",
+		"/webauthn/credential",
+		mfa.DeleteCredential,
+	},
 }
 
 // newRouter forms a new mux router, see https://github.com/gorilla/mux.

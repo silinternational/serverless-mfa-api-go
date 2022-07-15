@@ -12,10 +12,11 @@ import (
 
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/gorilla/mux"
 	uuid "github.com/satori/go.uuid"
 )
 
-const CredIDParam = "credential-id"
+const IDParam = "id"
 
 // ApiMeta holds metadata about the calling service for use in WebAuthn responses.
 // Since this service/api is consumed by multiple sources this information cannot
@@ -151,15 +152,16 @@ func DeleteCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	credIDs, ok := r.URL.Query()[CredIDParam]
-	if !ok || len(credIDs) < 1 {
-		err := fmt.Errorf("%s query string parameter not provided to DeleteCredential", CredIDParam)
+	params := mux.Vars(r)
+	credID, ok := params[IDParam]
+	if !ok || credID == "" {
+		err := fmt.Errorf("%s path parameter not provided to DeleteCredential", IDParam)
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("%s\n", err)
 		return
 	}
 
-	err, status := user.DeleteCredential(credIDs[0])
+	err, status := user.DeleteCredential(credID)
 	if err != nil {
 		log.Printf("error deleting user credential: %s", err)
 	}

@@ -792,6 +792,9 @@ func Test_GetPublicKeyAsBytes(t *testing.T) {
 
 func Router() *mux.Router {
 	router := mux.NewRouter()
+	router.HandleFunc(fmt.Sprintf("/webauthn/credential/{%s}", IDParam), DeleteCredential).Methods("DELETE")
+	// Ensure a request without an id gets handled properly
+	router.HandleFunc("/webauthn/credential/", DeleteCredential).Methods("DELETE")
 	router.HandleFunc("/webauthn/credential", DeleteCredential).Methods("DELETE")
 
 	// authenticate request based on api key and secret in headers
@@ -859,10 +862,17 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 		dontWantCredID  []byte
 	}{
 		{
+			name:            "noID",
+			user:            testUser1,
+			credID:          "",
+			wantErrContains: "credential not found with blank id",
+			wantStatus:      http.StatusBadRequest,
+		},
+		{
 			name:            "one credential but bad credential ID",
 			user:            testUser1,
-			credID:          "missing",
-			wantErrContains: "credential not found with id: missing",
+			credID:          "bad_one",
+			wantErrContains: "credential not found with id: bad_one",
 			wantStatus:      http.StatusNotFound,
 			wantContains:    []string{testUser1.ID},
 			wantCredIDs:     [][]byte{testUser1.Credentials[0].ID},
@@ -880,7 +890,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
 
-			request, _ := http.NewRequest("DELETE", fmt.Sprintf("/webauthn/credential?%s=%s", CredIDParam, tt.credID), nil)
+			request, _ := http.NewRequest("DELETE", fmt.Sprintf("/webauthn/credential/%s", tt.credID), nil)
 
 			request.Header.Set("x-mfa-apikey", tt.user.ApiKeyValue)
 			request.Header.Set("x-mfa-apisecret", tt.user.ApiKey.Secret)

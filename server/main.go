@@ -79,7 +79,7 @@ var routes = []route{
 		// where the id was previously returned as the key_handle_hash from the FinishRegistration call
 		"DeleteCredential",
 		"DELETE",
-		"/webauthn/credential",
+		fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),
 		mfa.DeleteCredential,
 	},
 }

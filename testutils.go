@@ -10,15 +10,17 @@ import (
 	"encoding/json"
 	"io"
 	"math/big"
+	"os"
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/dynamodb"
 	"github.com/duo-labs/webauthn/protocol"
 	"github.com/duo-labs/webauthn/protocol/webauthncbor"
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 )
-
-//
 
 const (
 	localAppID = "http://localhost"
@@ -30,6 +32,70 @@ const (
 	AttObjFlagAttestedCredData_AT = 64
 	AttObjFlagExtensionData_ED    = 128
 )
+
+func initDb(storage *Storage) error {
+	var err error
+	if storage == nil {
+		storage, err = NewStorage(&aws.Config{
+			Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
+			Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
+			DisableSSL: aws.Bool(true),
+		})
+		if err != nil {
+			return err
+		}
+	}
+
+	// attempt to delete tables in case already exists
+	tables := map[string]string{"WebAuthn": "uuid", "ApiKey": "value"}
+	for name, _ := range tables {
+		deleteTable := &dynamodb.DeleteTableInput{
+			TableName: aws.String(name),
+		}
+		_, err = storage.client.DeleteTable(deleteTable)
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case dynamodb.ErrCodeResourceNotFoundException:
+					// this is fine
+				default:
+					return aerr
+				}
+			} else {
+				return err
+			}
+		}
+	}
+
+	// create tables
+	for table, attr := range tables {
+		createTable := &dynamodb.CreateTableInput{
+			AttributeDefinitions: []*dynamodb.AttributeDefinition{
+				{
+					AttributeName: aws.String(attr),
+					AttributeType: aws.String("S"),
+				},
+			},
+			KeySchema: []*dynamodb.KeySchemaElement{
+				{
+					AttributeName: aws.String(attr),
+					KeyType:       aws.String("HASH"),
+				},
+			},
+			ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(3),
+				WriteCapacityUnits: aws.Int64(3),
+			},
+			TableName: aws.String(table),
+		}
+		_, err = storage.client.CreateTable(createTable)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
 
 // Encode websafe base64
 func encodeBase64(buf []byte) string {

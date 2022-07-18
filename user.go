@@ -26,7 +26,7 @@ const (
 type DynamoUser struct {
 	// Shared fields between U2F and WebAuthn
 	ID          string   `json:"uuid"`
-	APIKeyValue string   `json:"apiKey"`
+	ApiKeyValue string   `json:"apiKey"`
 	ApiKey      ApiKey   `json:"-"`
 	Store       *Storage `json:"-"`
 
@@ -61,7 +61,7 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 		Store:          storage,
 		WebAuthnClient: webAuthnClient,
 		ApiKey:         apiKey,
-		APIKeyValue:    apiKey.Key,
+		ApiKeyValue:    apiKey.Key,
 	}
 
 	if u.ID == "" {

@@ -70,7 +70,9 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	case "delete /webauthn/user":
 		mfa.DeleteUser(w, r)
 	// This expects a path param that is the id that was previously returned as
-	// the key_handle_hash from the FinishRegistration call
+	//   the key_handle_hash from the FinishRegistration call.
+	// Alternatively, if the id param matches the user's EncryptedAppID
+	//   then that user is saved with all of its legacy u2f fields blanked out.
 	case "delete /webauthn/credential":
 		mfa.DeleteCredential(w, r)
 	default:

@@ -20,27 +20,36 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 	}
 
 	tests := []struct {
-		name            string
-		user            DynamoUser
-		credID          string
-		wantErrContains string
-		wantStatus      int
-		wantContains    []string
-		wantCredIDs     [][]byte
-		dontWantCredID  []byte
+		name             string
+		user             DynamoUser
+		credID           string
+		wantErrContains  string
+		wantStatus       int
+		wantContains     []string
+		dontWantContains string
+		wantCredIDs      [][]byte
+		dontWantCredID   []byte
 	}{
 		{
-			name:            "no credentials",
+			name:            "no webauthn credentials",
 			user:            testUser0,
-			credID:          "missing",
+			credID:          "noMatchingCredID",
 			wantStatus:      http.StatusNotFound,
 			wantErrContains: "No webauthn credentials available.",
+			wantContains:    []string{"encryptedAppId:"},
+		},
+		{
+			name:             "legacy u2f credential",
+			user:             testUser0,
+			credID:           testUser0.EncryptedAppId,
+			wantStatus:       http.StatusNoContent,
+			dontWantContains: "encryptedAppId:",
 		},
 		{
 			name:            "one credential but bad credential ID",
 			user:            testUser1,
-			credID:          "missing",
-			wantErrContains: "Credential not found with id: missing",
+			credID:          "badCredID",
+			wantErrContains: "Credential not found with id: badCredID",
 			wantCredIDs:     [][]byte{testUser1.Credentials[0].ID},
 			wantStatus:      http.StatusNotFound,
 		},
@@ -70,10 +79,9 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			if tt.wantErrContains != "" {
 				ms.Error(err, "expected an error but didn't get one")
 				ms.Contains(err.Error(), tt.wantErrContains, "incorrect error")
-				return
+			} else {
+				ms.NoError(err, "unexpected error")
 			}
-
-			ms.NoError(err, "unexpected error")
 
 			results, err := baseConfigs.Storage.client.Scan(dbParams)
 			ms.NoError(err, "failed to scan storage for results")
@@ -82,6 +90,10 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 
 			for _, w := range tt.wantContains {
 				ms.Contains(resultsStr, w, "incorrect db results missing string")
+			}
+
+			if tt.dontWantContains != "" {
+				ms.NotContainsf(resultsStr, tt.dontWantContains, "unexpected string included in results")
 			}
 
 			gotUser := DynamoUser{

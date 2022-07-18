@@ -75,6 +75,15 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 	return u
 }
 
+func (u *DynamoUser) RemoveU2F() {
+	u.AppId = ""
+	u.EncryptedAppId = ""
+	u.KeyHandle = ""
+	u.EncryptedKeyHandle = ""
+	u.PublicKey = ""
+	u.EncryptedPublicKey = ""
+}
+
 func (u *DynamoUser) unsetSessionData() error {
 	u.EncryptedSessionData = nil
 	return u.Store.Store(envConfig.WebauthnTable, u)
@@ -125,12 +134,22 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 
 // DeleteCredential expects a hashed-encoded credential id.
 //  It finds a matching credential for that user and saves the user
-//  without that credential included.
+//    without that credential included.
+//  Alternatively, if the given credential id matches the user's EncryptedAppID
+//    then that user is saved with all of its legacy u2f fields blanked out.
 func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// load to be sure working with latest data
 	err := u.Load()
 	if err != nil {
 		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
+	}
+
+	if credIDHash == u.EncryptedAppId {
+		u.RemoveU2F()
+		if err := u.Store.Store(envConfig.WebauthnTable, u); err != nil {
+			return fmt.Errorf("error in DeleteCredential deleting legacy u2f: %w", err), http.StatusInternalServerError
+		}
+		return nil, http.StatusNoContent
 	}
 
 	if len(u.Credentials) == 0 {

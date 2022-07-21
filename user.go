@@ -21,7 +21,7 @@ import (
 const (
 	UserContextKey  = "user"
 	WebAuthnTablePK = "uuid"
-	LegacyU2FCredID = "legacy-u2f"
+	LegacyU2FCredID = "u2f"
 )
 
 type DynamoUser struct {
@@ -137,7 +137,7 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 //  It finds a matching credential for that user and saves the user
 //    without that credential included.
 //  Alternatively, if the given credential id indicates that a legacy U2F key should be removed
-//	 (e.g. by matching the string "legacy-u2f")
+//	 (e.g. by matching the string "u2f")
 //    then that user is saved with all of its legacy u2f fields blanked out.
 func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// load to be sure working with latest data

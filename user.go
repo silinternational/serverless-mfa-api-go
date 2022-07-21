@@ -21,6 +21,7 @@ import (
 const (
 	UserContextKey  = "user"
 	WebAuthnTablePK = "uuid"
+	LegacyU2FCredID = "legacy-u2f"
 )
 
 type DynamoUser struct {
@@ -144,7 +145,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
 	}
 
-	if credIDHash == u.EncryptedAppId {
+	if credIDHash == LegacyU2FCredID {
 		u.RemoveU2F()
 		if err := u.Store.Store(envConfig.WebauthnTable, u); err != nil {
 			return fmt.Errorf("error in DeleteCredential deleting legacy u2f: %w", err), http.StatusInternalServerError

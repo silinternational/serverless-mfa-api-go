@@ -23,7 +23,7 @@ else
 fi
 
 # disabled tests due to issue on Codeship resolving dynamo container
-#go test -v ./...
+go test -v ./...
 
 # Print the Serverless version in the logs
 serverless --version

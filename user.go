@@ -136,7 +136,8 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 // DeleteCredential expects a hashed-encoded credential id.
 //  It finds a matching credential for that user and saves the user
 //    without that credential included.
-//  Alternatively, if the given credential id matches the user's EncryptedAppID
+//  Alternatively, if the given credential id indicates that a legacy U2F key should be removed
+//	 (e.g. by matching the string "legacy-u2f")
 //    then that user is saved with all of its legacy u2f fields blanked out.
 func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 	// load to be sure working with latest data

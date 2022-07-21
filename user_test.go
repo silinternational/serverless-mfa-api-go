@@ -41,7 +41,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 		{
 			name:             "legacy u2f credential",
 			user:             testUser0,
-			credID:           testUser0.EncryptedAppId,
+			credID:           LegacyU2FCredID,
 			wantStatus:       http.StatusNoContent,
 			dontWantContains: "encryptedAppId:",
 		},

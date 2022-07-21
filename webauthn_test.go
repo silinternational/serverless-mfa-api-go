@@ -862,6 +862,12 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 		dontWantCredID  []byte
 	}{
 		{
+			name:       "legacy u2f credential",
+			user:       testUser0,
+			credID:     LegacyU2FCredID,
+			wantStatus: http.StatusNoContent,
+		},
+		{
 			name:            "noID",
 			user:            testUser1,
 			credID:          "",

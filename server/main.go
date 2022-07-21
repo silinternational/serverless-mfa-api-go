@@ -76,7 +76,10 @@ var routes = []route{
 		mfa.DeleteUser,
 	},
 	{ // This expects a path param that is the id that was previously returned
-		// as the key_handle_hash from the FinishRegistration call
+		// as the key_handle_hash from the FinishRegistration call.
+		// Alternatively, if the id param indicates that a legacy U2F key should be removed
+		//	 (e.g. by matching the string "legacy-u2f")
+		//   then that user is saved with all of its legacy u2f fields blanked out.
 		"DeleteCredential",
 		"DELETE",
 		fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),

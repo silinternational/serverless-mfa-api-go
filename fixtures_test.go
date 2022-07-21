@@ -91,6 +91,14 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []DynamoUser {
 	testUser2.ApiKeyValue = apiKey2.Key
 	testUser2.Credentials = []webauthn.Credential{cred20, cred21}
 
+	// add dummy legacy u2f data to first user
+	testUser0.AppId = "someAppId"
+	testUser0.EncryptedAppId = "someEncryptedAppId"
+	testUser0.KeyHandle = "someKeyHandle"
+	testUser0.EncryptedKeyHandle = "someEncryptedKeyHandle"
+	testUser0.PublicKey = "somePublicKey"
+	testUser0.EncryptedPublicKey = "someEncryptedPublicKey"
+
 	for _, u := range []DynamoUser{testUser0, testUser1, testUser2} {
 		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
 	}

@@ -10,12 +10,15 @@ test:
     API_KEY_TABLE: ApiKey
     WEBAUTHN_TABLE: WebAuthn
     LAMBDA_ROLE: placeholder
+  depends_on:
+    - dynamo
 
 app:
   build:
     dockerfile_path: Dockerfile
   cached: true
   encrypted_env_file: aws.env.encrypted
+  working_dir: /src
 
 dynamo:
   image: amazon/dynamodb-local

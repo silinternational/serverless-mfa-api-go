@@ -4,6 +4,9 @@
 # golang output binary directory
 bin
 
+# docker config file
+dockercfg
+
 # credentials and other env files
 aws.env
 *.aes

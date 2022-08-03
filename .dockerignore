@@ -1,9 +1,11 @@
-.cert/
-demo-ui/
-terraform/
-aws.env
-Dockerfile
-docker-compose.yml
-local.env.example
-Makefile
-README.md
+# Ignore everything
+*
+
+# Whitelist required files
+!.env.encrypted
+!codeship/*
+!lambda/*
+!server/*
+!go.*
+!*.go
+!serverless.yml

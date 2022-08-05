@@ -161,7 +161,7 @@ func DeleteCredential(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err, status := user.DeleteCredential(credID)
+	status, err := user.DeleteCredential(credID)
 	if err != nil {
 		log.Printf("error deleting user credential: %s", err)
 	}

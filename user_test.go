@@ -72,7 +72,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 	}
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
-			err, status := tt.user.DeleteCredential(tt.credID)
+			status, err := tt.user.DeleteCredential(tt.credID)
 
 			ms.Equal(tt.wantStatus, status, "incorrect http status")
 

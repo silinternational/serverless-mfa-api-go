@@ -139,24 +139,24 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 //  Alternatively, if the given credential id indicates that a legacy U2F key should be removed
 //	 (e.g. by matching the string "u2f")
 //    then that user is saved with all of its legacy u2f fields blanked out.
-func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
-	// load to be sure working with latest data
+func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
+	// load to be sure working with the latest data
 	err := u.Load()
 	if err != nil {
-		return fmt.Errorf("error in DeleteCredential: %w", err), http.StatusInternalServerError
+		return http.StatusInternalServerError, fmt.Errorf("error in DeleteCredential: %w", err)
 	}
 
 	if credIDHash == LegacyU2FCredID {
 		u.RemoveU2F()
 		if err := u.Store.Store(envConfig.WebauthnTable, u); err != nil {
-			return fmt.Errorf("error in DeleteCredential deleting legacy u2f: %w", err), http.StatusInternalServerError
+			return http.StatusInternalServerError, fmt.Errorf("error in DeleteCredential deleting legacy u2f: %w", err)
 		}
-		return nil, http.StatusNoContent
+		return http.StatusNoContent, nil
 	}
 
 	if len(u.Credentials) == 0 {
 		err := fmt.Errorf("error in DeleteCredential. No webauthn credentials available.")
-		return err, http.StatusNotFound
+		return http.StatusNotFound, err
 	}
 
 	remainingCreds := []webauthn.Credential{}
@@ -171,15 +171,15 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (error, int) {
 
 	if len(remainingCreds) == len(u.Credentials) {
 		err := fmt.Errorf("error in DeleteCredential. Credential not found with id: %s", credIDHash)
-		return err, http.StatusNotFound
+		return http.StatusNotFound, err
 	}
 
 	u.Credentials = remainingCreds
 
 	if err := u.encryptAndStoreCredentials(); err != nil {
-		return fmt.Errorf("error in DeleteCredential storing remaining credentials: %w", err), http.StatusInternalServerError
+		return http.StatusInternalServerError, fmt.Errorf("error in DeleteCredential storing remaining credentials: %w", err)
 	}
-	return nil, http.StatusNoContent
+	return http.StatusNoContent, nil
 }
 
 func (u *DynamoUser) encryptAndStoreCredentials() error {

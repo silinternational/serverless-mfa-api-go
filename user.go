@@ -21,12 +21,13 @@ import (
 const (
 	UserContextKey  = "user"
 	WebAuthnTablePK = "uuid"
+	LegacyU2FCredID = "u2f"
 )
 
 type DynamoUser struct {
 	// Shared fields between U2F and WebAuthn
 	ID          string   `json:"uuid"`
-	APIKeyValue string   `json:"apiKey"`
+	ApiKeyValue string   `json:"apiKey"`
 	ApiKey      ApiKey   `json:"-"`
 	Store       *Storage `json:"-"`
 
@@ -39,14 +40,17 @@ type DynamoUser struct {
 	EncryptedPublicKey string `json:"encryptedPublicKey,omitempty"`
 
 	// WebAuthn fields
-	SessionData          webauthn.SessionData  `json:"-"`
-	EncryptedSessionData []byte                `json:"EncryptedSessionData,omitempty"`
+	SessionData          webauthn.SessionData `json:"-"`
+	EncryptedSessionData []byte               `json:"EncryptedSessionData,omitempty"`
+
+	// These can be multiple Yubikeys or other WebAuthn entries
 	Credentials          []webauthn.Credential `json:"-"`
 	EncryptedCredentials []byte                `json:"EncryptedCredentials,omitempty"`
-	WebAuthnClient       *webauthn.WebAuthn    `json:"-"`
-	Name                 string                `json:"-"`
-	DisplayName          string                `json:"-"`
-	Icon                 string                `json:"-"`
+
+	WebAuthnClient *webauthn.WebAuthn `json:"-"`
+	Name           string             `json:"-"`
+	DisplayName    string             `json:"-"`
+	Icon           string             `json:"-"`
 }
 
 func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) DynamoUser {
@@ -58,7 +62,7 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 		Store:          storage,
 		WebAuthnClient: webAuthnClient,
 		ApiKey:         apiKey,
-		APIKeyValue:    apiKey.Key,
+		ApiKeyValue:    apiKey.Key,
 	}
 
 	if u.ID == "" {
@@ -70,6 +74,15 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 		log.Printf("failed to load user: %s\n", err)
 	}
 	return u
+}
+
+func (u *DynamoUser) RemoveU2F() {
+	u.AppId = ""
+	u.EncryptedAppId = ""
+	u.KeyHandle = ""
+	u.EncryptedKeyHandle = ""
+	u.PublicKey = ""
+	u.EncryptedPublicKey = ""
 }
 
 func (u *DynamoUser) unsetSessionData() error {
@@ -117,6 +130,59 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	u.Credentials = append(u.Credentials, credential)
 
 	// encrypt credentials for storage
+	return u.encryptAndStoreCredentials()
+}
+
+// DeleteCredential expects a hashed-encoded credential id.
+//  It finds a matching credential for that user and saves the user
+//    without that credential included.
+//  Alternatively, if the given credential id indicates that a legacy U2F key should be removed
+//	 (e.g. by matching the string "u2f")
+//    then that user is saved with all of its legacy u2f fields blanked out.
+func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
+	// load to be sure working with the latest data
+	err := u.Load()
+	if err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("error in DeleteCredential: %w", err)
+	}
+
+	if credIDHash == LegacyU2FCredID {
+		u.RemoveU2F()
+		if err := u.Store.Store(envConfig.WebauthnTable, u); err != nil {
+			return http.StatusInternalServerError, fmt.Errorf("error in DeleteCredential deleting legacy u2f: %w", err)
+		}
+		return http.StatusNoContent, nil
+	}
+
+	if len(u.Credentials) == 0 {
+		err := fmt.Errorf("error in DeleteCredential. No webauthn credentials available.")
+		return http.StatusNotFound, err
+	}
+
+	remainingCreds := []webauthn.Credential{}
+
+	// remove the requested credential from among the user's current webauthn credentials
+	for _, c := range u.Credentials {
+		if hashAndEncodeKeyHandle(c.ID) == credIDHash {
+			continue
+		}
+		remainingCreds = append(remainingCreds, c)
+	}
+
+	if len(remainingCreds) == len(u.Credentials) {
+		err := fmt.Errorf("error in DeleteCredential. Credential not found with id: %s", credIDHash)
+		return http.StatusNotFound, err
+	}
+
+	u.Credentials = remainingCreds
+
+	if err := u.encryptAndStoreCredentials(); err != nil {
+		return http.StatusInternalServerError, fmt.Errorf("error in DeleteCredential storing remaining credentials: %w", err)
+	}
+	return http.StatusNoContent, nil
+}
+
+func (u *DynamoUser) encryptAndStoreCredentials() error {
 	js, err := json.Marshal(u.Credentials)
 	if err != nil {
 		return err
@@ -184,11 +250,16 @@ func (u *DynamoUser) Delete() error {
 }
 
 func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
+	if u.WebAuthnClient == nil {
+		return nil, fmt.Errorf("dynamoUser, %s, missing WebAuthClient in BeginRegistration", u.Name)
+	}
+
 	rrk := false
 	authSelection := protocol.AuthenticatorSelection{
 		RequireResidentKey: &rrk,
 		UserVerification:   protocol.VerificationDiscouraged,
 	}
+
 	options, sessionData, err := u.WebAuthnClient.BeginRegistration(u, webauthn.WithAuthenticatorSelection(authSelection))
 	if err != nil {
 		return &protocol.CredentialCreation{}, fmt.Errorf("failed to begin registration: %w", err)
@@ -203,6 +274,10 @@ func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
 }
 
 func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
+	if r.Body == nil {
+		return "", fmt.Errorf("request Body may not be nil in FinishRegistration")
+	}
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to get api config from request: %w", err)
@@ -211,12 +286,20 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
-		return "", fmt.Errorf("unable to parese credential creation response body`: %w", err)
+		var protocolError *protocol.Error
+		if errors.As(err, &protocolError) {
+			fmt.Printf("body: %s\n", string(body))
+			fmt.Printf("protocolError: %+v\n", protocolError)
+			fmt.Printf("DevInfo: %s\n", protocolError.DevInfo)
+			return "", fmt.Errorf("unable to parse credential creation response body: %v -- %s", protocolError,
+				protocolError.DevInfo)
+		}
+		return "", fmt.Errorf("unable to parse credential creation response body: %w", err)
 	}
 
 	credential, err := u.WebAuthnClient.CreateCredential(u, u.SessionData, parsedResponse)
 	if err != nil {
-		return "", fmt.Errorf("unable to create credential`: %w", err)
+		return "", fmt.Errorf("unable to create credential: %w", err)
 	}
 
 	err = u.saveNewCredential(*credential)
@@ -254,10 +337,14 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 }
 
 func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) {
+	if r.Body == nil {
+		return nil, fmt.Errorf("request Body may not be nil in FinishLogin")
+	}
+
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		log.Printf("failed to read request bodyt: %s", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to read request bodyt: %s", err)
+		log.Printf("failed to read request body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %s", err)
 	}
 
 	br := fixEncoding(body)
@@ -333,7 +420,7 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 		// decryption process includes extra/invalid \x00 character, so trim it out
 		// at some point early in dev this was needed, but in testing recently it doesn't
 		// make a difference. Leaving commented out for now until we know 100% it's not needed
-		//credId = bytes.Trim(credId, "\x00")
+		// credId = bytes.Trim(credId, "\x00")
 
 		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
 		if err != nil {
@@ -347,7 +434,7 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 			return nil
 		}
 		// Same as credId
-		//pubKey = bytes.Trim(pubKey, "\x00")
+		// pubKey = bytes.Trim(pubKey, "\x00")
 
 		decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
 		if err != nil {

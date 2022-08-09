@@ -69,6 +69,13 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		mfa.FinishRegistration(w, r)
 	case "delete /webauthn/user":
 		mfa.DeleteUser(w, r)
+	// This expects a path param that is the id that was previously returned as
+	//   the key_handle_hash from the FinishRegistration call.
+	// Alternatively, if the id param indicates that a legacy U2F key should be removed
+	//   (e.g. by matching the string "u2f")
+	//   then that user is saved with all of its legacy u2f fields blanked out.
+	case "delete /webauthn/credential":
+		mfa.DeleteCredential(w, r)
 	default:
 		return clientError(http.StatusNotFound, fmt.Sprintf("The requested route is not supported: %s", route))
 	}

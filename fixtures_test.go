@@ -6,13 +6,6 @@ import (
 	"github.com/duo-labs/webauthn/webauthn"
 )
 
-type fixtureConfig struct {
-	Storage       *Storage
-	WebAuthClient *webauthn.WebAuthn
-	ApiKey        ApiKey
-	EnvConfig     EnvConfig
-}
-
 type baseTestConfig struct {
 	AwsConfig      aws.Config
 	EnvConfig      EnvConfig

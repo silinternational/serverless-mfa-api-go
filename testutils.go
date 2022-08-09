@@ -25,20 +25,46 @@ import (
 const (
 	localAppID = "http://localhost"
 
-	// 65 = AT(64) + UP(1)
-	// 193 = ED(128) + AT(64) + UP(1)
+	// The authenticatorData value includes bytes that refer to these flags.
+	// Multiple flags can be combined through addition. For example,
+	// including the UserPresent (UP) and AttestedCredentialData (AT) flags would be done
+	// by using the value 65.
+	// AT(64) + UP(1) = 65
 	AttObjFlagUserPresent_UP      = 1
 	AttObjFlagUserVerified_UV     = 2
 	AttObjFlagAttestedCredData_AT = 64
 	AttObjFlagExtensionData_ED    = 128
 )
 
+func testAwsConfig() aws.Config {
+	return aws.Config{
+		Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
+		Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
+		DisableSSL: aws.Bool(true),
+	}
+}
+
+func testEnvConfig(awsConfig aws.Config) EnvConfig {
+	envCfg := EnvConfig{
+		ApiKeyTable:      "ApiKey",
+		WebauthnTable:    "WebAuthn",
+		AwsEndpoint:      os.Getenv("AWS_ENDPOINT"),
+		AwsDefaultRegion: os.Getenv("AWS_DEFAULT_REGION"),
+		AwsDisableSSL:    true,
+		AWSConfig:        &awsConfig,
+	}
+
+	SetConfig(envCfg)
+	return envCfg
+}
+
 func initDb(storage *Storage) error {
 	var err error
 	if storage == nil {
+		awsCfg := testAwsConfig()
 		storage, err = NewStorage(&aws.Config{
-			Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
-			Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
+			Endpoint:   awsCfg.Endpoint,
+			Region:     awsCfg.Region,
 			DisableSSL: aws.Bool(true),
 		})
 		if err != nil {

@@ -10,7 +10,6 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
@@ -107,28 +106,6 @@ func Test_Parse(t *testing.T) {
 
 	want := strings.ReplaceAll(id, "=", "")
 	assert.Equal(want, pccr.ID, "incorrect RawID")
-}
-
-func testAwsConfig() aws.Config {
-	return aws.Config{
-		Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
-		Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
-		DisableSSL: aws.Bool(true),
-	}
-}
-
-func testEnvConfig(awsConfig aws.Config) EnvConfig {
-	envCfg := EnvConfig{
-		ApiKeyTable:      "ApiKey",
-		WebauthnTable:    "WebAuthn",
-		AwsEndpoint:      os.Getenv("AWS_ENDPOINT"),
-		AwsDefaultRegion: os.Getenv("AWS_DEFAULT_REGION"),
-		AwsDisableSSL:    true,
-		AWSConfig:        &awsConfig,
-	}
-
-	SetConfig(envCfg)
-	return envCfg
 }
 
 func formatDynamoResults(results interface{}) string {

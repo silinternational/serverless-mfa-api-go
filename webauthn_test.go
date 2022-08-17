@@ -304,12 +304,12 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	keyHandle2 := "virtualkey12"
 
 	// These are emulated Yubikey values
-	authData1, authDataBytes1, privateKey1 := GetAuthDataAndPrivateKey(localAppID, keyHandle1)
-	attestObject1 := GetAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
+	authData1, authDataBytes1, privateKey1 := getAuthDataAndPrivateKey(localAppID, keyHandle1)
+	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
 	reqWithBody1 := getTestAssertionRequest(credID, authData1, clientDataStr, attestObject1, &testUser)
 
-	authData2, authDataBytes2, privateKey2 := GetAuthDataAndPrivateKey(localAppID, "virtualkey12")
-	attestObject2 := GetAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2)
+	authData2, authDataBytes2, privateKey2 := getAuthDataAndPrivateKey(localAppID, "virtualkey12")
+	attestObject2 := getAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2)
 	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientDataStr, attestObject2, &testUser)
 
 	localStorage.Store(envConfig.WebauthnTable, &testUser)
@@ -585,10 +585,10 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	keyHandle1 := "virtKey11"
-	authData1, authDataBytes1, privateKey1 := GetAuthDataAndPrivateKey(localAppID, keyHandle1)
+	authData1, authDataBytes1, privateKey1 := getAuthDataAndPrivateKey(localAppID, keyHandle1)
 
 	keyHandle2 := "virtKey12"
-	authData2, authDataBytes2, privateKey2 := GetAuthDataAndPrivateKey(localAppID, keyHandle2)
+	authData2, authDataBytes2, privateKey2 := getAuthDataAndPrivateKey(localAppID, keyHandle2)
 
 	clientData, cdBytes := getClientDataJson("webauthn.get", challenge)
 	publicKey1 := GetPublicKeyAsBytes(privateKey1)
@@ -734,7 +734,7 @@ func Test_GetSignatureForLogin(t *testing.T) {
 	xyData = append(xyData, bigXY.Bytes()...)
 
 	keyHandle := "virtKey11"
-	_, authDataBytes1, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
+	_, authDataBytes1, privateKey := getAuthDataAndPrivateKey(localAppID, keyHandle)
 	signature := GenerateAuthenticationSig(authDataBytes1, clientData, privateKey)
 
 	want := "MEYCIQDH_BmLNjJNqS8b725jiqzyc5JZmNh8wYuaPBH3PjELMwIhANsuNznzM92SrYonfrX9-nL4CzOhuiOSxkZ7YFmOkTdd"
@@ -744,7 +744,7 @@ func Test_GetSignatureForLogin(t *testing.T) {
 func Test_GetAuthDataAndPrivateKey(t *testing.T) {
 	assert := require.New(t)
 	keyHandle := "virtKey11"
-	authData, authDataBytes, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
+	authData, authDataBytes, privateKey := getAuthDataAndPrivateKey(localAppID, keyHandle)
 
 	want := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAACXZpcnRLZXkxMaQBAgMmIVggBtYaQhitMvmuvKeeUZmuh96TmXTRGxB_6bfslWmTVF4iWCCK1h-O_T8R6MjkIWCsX-Pry8RJhuOxbDwovnYJBu0SZw`
 	assert.Equal(want, authData, "incorrect bare authentication data")
@@ -757,7 +757,7 @@ func Test_GetAuthDataAndPrivateKey(t *testing.T) {
 func Test_GetPublicKeyAsBytes(t *testing.T) {
 	assert := require.New(t)
 	const keyHandle = "virtKey11"
-	_, _, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
+	_, _, privateKey := getAuthDataAndPrivateKey(localAppID, keyHandle)
 
 	got := GetPublicKeyAsBytes(privateKey)
 
@@ -922,4 +922,25 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			}
 		})
 	}
+}
+
+func (ms *MfaSuite) Test_PrintRegistrationData() {
+	//const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
+	const challenge = "uwFKfrE97BmrYafR8TendR2JmldzEeCzZE1g/Aabm7o="
+
+	const credID = "dmlydEtleTExLTA"
+	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
+
+	keyHandle1 := "virtualkey11"
+
+	// These are emulated Yubikey values
+	authData1, authDataBytes1, privateKey1 := getAuthDataAndPrivateKey(localAppID, keyHandle1)
+	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
+
+	fmt.Printf("\n\nTest data\nCredential ID: %s\n", credID)
+	fmt.Printf("Challenge: %s\n", challenge)
+	fmt.Printf("clientData: %s\n", clientDataStr)
+	fmt.Printf("authData1: %s\n", authData1)
+	fmt.Printf("attestObject1: %s\n", attestObject1)
+	//ms.Fail("Just showing test data")
 }

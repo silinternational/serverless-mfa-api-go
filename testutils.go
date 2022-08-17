@@ -17,9 +17,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncbor"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
 )
 
 const (
@@ -153,24 +150,6 @@ type ClientData struct {
 	CIDPublicKey json.RawMessage `json:"cid_pubkey"`
 }
 
-func getClientDataJson(ceremonyType, challenge string) (string, []byte) {
-	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
-		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
-
-	}
-
-	cd := ClientData{
-		Typ:       ceremonyType,
-		Origin:    localAppID,
-		Challenge: challenge,
-	}
-
-	cdJson, _ := json.Marshal(cd)
-
-	clientData := base64.URLEncoding.EncodeToString(cdJson)
-	return clientData, cdJson
-}
-
 // GenerateAuthenticationSig appends the clientData to the authData and uses the privateKey's public Key to sign it
 //  via a sha256 hashing algorithm.
 // It returns the base64 encoded version of the marshaled version of the corresponding dsa signature {r:bigInt, s:bigInt}
@@ -209,59 +188,6 @@ func GetPrivateKey() *ecdsa.PrivateKey {
 	return privateKey
 }
 
-// GetAuthDataAndPrivateKey return the authentication data as a string and as a byte slice
-//   and also returns the private key
-func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
-	// Add in the RP ID Hash (32 bytes)
-	RPIDHash := sha256.Sum256([]byte(rpID))
-	for _, r := range RPIDHash {
-		authData = append(authData, r)
-	}
-
-	authData = append(authData, byte(AttObjFlagAttestedCredData_AT+AttObjFlagUserPresent_UP)) // AT & UP flags
-
-	// Add 4 bytes for counter = 0 (for now, just make it 0)
-	authData = append(authData, []byte{byte(0), byte(0), byte(0), byte(0)}...)
-
-	// Add 16 bytes for (zero) AAGUID
-	aaguid := make([]byte, 16)
-	authData = append(authData, aaguid...)
-
-	credID := []byte(keyHandle)
-
-	kHLen := len(keyHandle)
-	if kHLen >= 256 {
-		panic("the length of the keyHandle must be less than 256")
-	}
-	idLen := []byte{byte(0), byte(kHLen)}
-
-	authData = append(authData, idLen...)
-	authData = append(authData, credID...)
-
-	privateKey = GetPrivateKey()
-	publicKey := privateKey.PublicKey
-
-	pubKeyData := webauthncose.EC2PublicKeyData{
-		PublicKeyData: webauthncose.PublicKeyData{
-			Algorithm: int64(webauthncose.AlgES256),
-			KeyType:   int64(webauthncose.EllipticKey),
-		},
-		XCoord: publicKey.X.Bytes(),
-		YCoord: publicKey.Y.Bytes(),
-	}
-
-	// Get the CBOR-encoded representation of the OKPPublicKeyData
-	pubKeyBytes, err := webauthncbor.Marshal(pubKeyData)
-	if err != nil {
-		panic("error Marshaling publicKeyData: " + err.Error())
-	}
-
-	authData = append(authData, pubKeyBytes...)
-	authDataStr = base64.RawURLEncoding.EncodeToString(authData)
-	return authDataStr, authData, privateKey
-
-}
-
 // GetPublicKeyAsBytes starts with byte(4) and appends the private key's public key's X and then Y bytes
 func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	pubKey := privateKey.PublicKey
@@ -271,38 +197,6 @@ func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	buf = append(buf, pubKey.Y.Bytes()...)
 
 	return buf
-}
-
-// GetAttestationObject builds an attestation object for a webauth registration.
-func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) string {
-	bigNumStr := "123456789012345678901234567890123456789012345678901234567890123456789012345678"
-	bigNum := new(big.Int)
-	bigNum, ok := bigNum.SetString(bigNumStr, 10)
-	if !ok {
-		panic("failed to set bigNumber to string")
-	}
-	attestationCertBytes := GetCertBytes(privateKey, bigNum, bigStrNotRandom1)
-
-	notRandomReader := strings.NewReader(bigStrNotRandom1)
-	signature := GetSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey)
-
-	attObj := protocol.AttestationObject{
-		Format: "fido-u2f",
-
-		RawAuthData: authDataBytes,
-		AttStatement: map[string]interface{}{
-			`x5c`: []interface{}{attestationCertBytes},
-			`sig`: signature,
-		},
-	}
-
-	marshalledAttObj, err := webauthncbor.Marshal(&attObj)
-	if err != nil {
-		panic("error marshalling AttestationObject: " + err.Error())
-	}
-
-	b64RawURL := base64.RawURLEncoding.EncodeToString(marshalledAttObj)
-	return b64RawURL
 }
 
 // GetCertBytes generates an x509 certificate without using any kind of randomization

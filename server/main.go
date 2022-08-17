@@ -75,6 +75,13 @@ var routes = []route{
 		"/webauthn/user",
 		mfa.DeleteUser,
 	},
+	//   For information on this, see the doc comment for mfa.U2fRegistration
+	{
+		"RegistrationResponse",
+		"POST",
+		"/u2f/registration",
+		mfa.U2fRegistration,
+	},
 	{ // This expects a path param that is the id that was previously returned
 		// as the key_handle_hash from the FinishRegistration call.
 		// Alternatively, if the id param indicates that a legacy U2F key should be removed

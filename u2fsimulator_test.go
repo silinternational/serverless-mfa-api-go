@@ -1,8 +1,9 @@
 package mfa
 
 import (
+	"bytes"
+	"encoding/json"
 	"net/http"
-	"net/url"
 )
 
 func (ms *MfaSuite) Test_U2fRegistration() {
@@ -10,13 +11,16 @@ func (ms *MfaSuite) Test_U2fRegistration() {
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	httpWriter := newLambdaResponseWriter()
-	httpRequest := http.Request{
-		PostForm: url.Values{
-			"challenge":        []string{challenge},
-			"relying_party_id": []string{"ourTestApp"},
-		},
-	}
-	U2fRegistration(httpWriter, &httpRequest)
+	requestBody, err := json.Marshal(map[string]string{
+		"challenge":        challenge,
+		"relying_party_id": "ourTestApp",
+	})
+	ms.NoError(err, "error just creating body params for test")
+
+	httpRequest, err := http.NewRequest(http.MethodPost, "https://example.com", bytes.NewBuffer(requestBody))
+	ms.NoError(err, "error just creating http request for test")
+
+	U2fRegistration(httpWriter, httpRequest)
 
 	gotBody := string(httpWriter.Body)
 	ms.Contains(gotBody, `"id":"`)

@@ -132,9 +132,11 @@ func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, pr
 }
 
 type AttObjectClientData struct {
+	AuthenticatorData string `json:"authenticatorData"`
 	AttestationObject string `json:"attestationObject"`
 	ClientDataJSON    string `json:"clientDataJSON"`
 }
+
 type U2fRegistrationResponse struct {
 	ID                     string              `json:"id"`
 	RawID                  string              `json:"rawId"`
@@ -167,7 +169,7 @@ func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 
 	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
-	_, authDataBytes, privateKey := getAuthDataAndPrivateKey(rpID, keyHandle)
+	authDataStr, authDataBytes, privateKey := getAuthDataAndPrivateKey(rpID, keyHandle)
 
 	attestationObject := getAttestationObject(authDataBytes, clientData, keyHandle, privateKey)
 
@@ -177,6 +179,7 @@ func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 		ID:    id,
 		RawID: id,
 		Response: AttObjectClientData{
+			AuthenticatorData: authDataStr,
 			AttestationObject: attestationObject,
 			ClientDataJSON:    clientDataStr,
 		},

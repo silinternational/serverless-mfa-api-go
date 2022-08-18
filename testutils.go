@@ -2,17 +2,12 @@ package mfa
 
 import (
 	"crypto/ecdsa"
-	"crypto/elliptic"
 	"crypto/sha256"
-	"crypto/x509"
-	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
-	"io"
 	"math/big"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -176,18 +171,6 @@ func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.Pr
 	return encodeBase64(asnSig)
 }
 
-// GetPrivateKey returns a newly generated ecdsa private key without using any kind of randomizing
-func GetPrivateKey() *ecdsa.PrivateKey {
-	curve := elliptic.P256()
-	notRandomReader := strings.NewReader(bigStrNotRandom1)
-	privateKey, err := ecdsa.GenerateKey(curve, notRandomReader)
-	if err != nil {
-		panic("error generating privateKey: " + err.Error())
-	}
-
-	return privateKey
-}
-
 // GetPublicKeyAsBytes starts with byte(4) and appends the private key's public key's X and then Y bytes
 func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	pubKey := privateKey.PublicKey
@@ -197,67 +180,4 @@ func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	buf = append(buf, pubKey.Y.Bytes()...)
 
 	return buf
-}
-
-// GetCertBytes generates an x509 certificate without using any kind of randomization
-// Most of this was borrowed from https://github.com/ryankurte/go-u2f
-func GetCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReaderStr string) []byte {
-	template := x509.Certificate{}
-
-	template.SerialNumber = serialNumber
-	template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
-
-	template.NotBefore = time.Date(2022, 1, 1, 1, 1, 1, 1, time.UTC)
-	template.NotAfter = time.Date(2122, 1, 1, 1, 1, 1, 1, time.UTC) // 100 years
-
-	template.SignatureAlgorithm = x509.ECDSAWithSHA256
-
-	newReader := strings.NewReader(certReaderStr)
-
-	certBytes, err := x509.CreateCertificate(newReader, &template, &template, &(privateKey.PublicKey), privateKey)
-	if err != nil {
-		panic("error creating x509 certificate " + err.Error())
-	}
-
-	return certBytes
-}
-
-// GetSignatureForAttObject starts with byte(0) and appends the sha256 sum of the localAppID and of the clientData
-//  and then appends the keyHandle and an elliptic Marshalled version of the public key
-//  It does a sha256 sum of that and creates a dsa signature of it with the private key and without using any
-//  randomizing
-func GetSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) []byte {
-
-	appParam := sha256.Sum256([]byte(localAppID))
-	challenge := sha256.Sum256(clientData)
-
-	publicKey := privateKey.PublicKey
-
-	buf := []byte{0}
-	buf = append(buf, appParam[:]...)
-	buf = append(buf, challenge[:]...)
-	buf = append(buf, keyHandle...)
-	pk := elliptic.Marshal(publicKey.Curve, publicKey.X, publicKey.Y)
-	buf = append(buf, pk...)
-
-	digest := sha256.Sum256(buf)
-	_, asnSig := getASN1Signature(notRandom, privateKey, digest[:])
-	return asnSig
-}
-
-func getASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (dsaSignature, []byte) {
-
-	r, s, err := ecdsa.Sign(notRandom, privateKey, sha256Digest[:])
-	if err != nil {
-		panic("error generating signature: " + err.Error())
-	}
-
-	dsaSig := dsaSignature{R: r, S: s}
-
-	asnSig, err := asn1.Marshal(dsaSig)
-	if err != nil {
-		panic("error encoding signature: " + err.Error())
-	}
-
-	return dsaSig, asnSig
 }

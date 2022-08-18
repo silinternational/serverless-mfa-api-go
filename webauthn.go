@@ -206,13 +206,16 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	}
 }
 
+func fixStringEncoding(content string) string {
+	content = strings.ReplaceAll(content, "+", "-")
+	content = strings.ReplaceAll(content, "/", "_")
+	content = strings.ReplaceAll(content, "=", "")
+	return content
+}
+
 func fixEncoding(content []byte) io.Reader {
 	allStr := string(content)
-	allStr = strings.ReplaceAll(allStr, "+", "-")
-	allStr = strings.ReplaceAll(allStr, "/", "_")
-	allStr = strings.ReplaceAll(allStr, "=", "")
-
-	return bytes.NewReader([]byte(allStr))
+	return bytes.NewReader([]byte(fixStringEncoding(allStr)))
 }
 
 func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {

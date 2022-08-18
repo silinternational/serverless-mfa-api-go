@@ -2,9 +2,14 @@ package mfa
 
 import (
 	"crypto/ecdsa"
+	"crypto/elliptic"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"log"
 	"math/big"
 	"math/rand"
 	"net/http"
@@ -29,15 +34,17 @@ func randomString(n int) string {
 	return string(b)
 }
 
-func getClientDataJson(ceremonyType, challenge string) (string, []byte) {
+func getClientDataJson(ceremonyType, challenge string, rpOrigin string) (string, []byte) {
 	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
 		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
 
 	}
+	rpOrigin = strings.Replace(rpOrigin, "http://", "", 1)
+	rpOrigin = strings.Replace(rpOrigin, "https://", "", 1)
 
 	cd := ClientData{
 		Typ:       ceremonyType,
-		Origin:    localAppID,
+		Origin:    rpOrigin,
 		Challenge: challenge,
 	}
 
@@ -45,6 +52,18 @@ func getClientDataJson(ceremonyType, challenge string) (string, []byte) {
 
 	clientData := base64.URLEncoding.EncodeToString(cdJson)
 	return clientData, cdJson
+}
+
+// getPrivateKey returns a newly generated ecdsa private key without using any kind of randomizing
+func getPrivateKey() *ecdsa.PrivateKey {
+	curve := elliptic.P256()
+	notRandomReader := strings.NewReader(bigStrNotRandom1)
+	privateKey, err := ecdsa.GenerateKey(curve, notRandomReader)
+	if err != nil {
+		panic("error generating privateKey: " + err.Error())
+	}
+
+	return privateKey
 }
 
 // getAuthDataAndPrivateKey return the authentication data as a string and as a byte slice
@@ -76,7 +95,7 @@ func getAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authD
 	authData = append(authData, idLen...)
 	authData = append(authData, credID...)
 
-	privateKey = GetPrivateKey()
+	privateKey = getPrivateKey()
 	publicKey := privateKey.PublicKey
 
 	pubKeyData := webauthncose.EC2PublicKeyData{
@@ -99,6 +118,69 @@ func getAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authD
 	return authDataStr, authData, privateKey
 }
 
+// getCertBytes generates an x509 certificate without using any kind of randomization
+// Most of this was borrowed from https://github.com/ryankurte/go-u2f
+func getCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReaderStr string) []byte {
+	template := x509.Certificate{}
+
+	template.SerialNumber = serialNumber
+	template.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature | x509.KeyUsageCertSign
+
+	template.NotBefore = time.Date(2022, 1, 1, 1, 1, 1, 1, time.UTC)
+	template.NotAfter = time.Date(2122, 1, 1, 1, 1, 1, 1, time.UTC) // 100 years
+
+	template.SignatureAlgorithm = x509.ECDSAWithSHA256
+
+	newReader := strings.NewReader(certReaderStr)
+
+	certBytes, err := x509.CreateCertificate(newReader, &template, &template, &(privateKey.PublicKey), privateKey)
+	if err != nil {
+		panic("error creating x509 certificate " + err.Error())
+	}
+
+	return certBytes
+}
+
+func getASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (dsaSignature, []byte) {
+
+	r, s, err := ecdsa.Sign(notRandom, privateKey, sha256Digest[:])
+	if err != nil {
+		panic("error generating signature: " + err.Error())
+	}
+
+	dsaSig := dsaSignature{R: r, S: s}
+
+	asnSig, err := asn1.Marshal(dsaSig)
+	if err != nil {
+		panic("error encoding signature: " + err.Error())
+	}
+
+	return dsaSig, asnSig
+}
+
+// getSignatureForAttObject starts with byte(0) and appends the sha256 sum of the localAppID and of the clientData
+//  and then appends the keyHandle and an elliptic Marshalled version of the public key
+//  It does a sha256 sum of that and creates a dsa signature of it with the private key and without using any
+//  randomizing
+func getSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) []byte {
+
+	appParam := sha256.Sum256([]byte(localAppID))
+	challenge := sha256.Sum256(clientData)
+
+	publicKey := privateKey.PublicKey
+
+	buf := []byte{0}
+	buf = append(buf, appParam[:]...)
+	buf = append(buf, challenge[:]...)
+	buf = append(buf, keyHandle...)
+	pk := elliptic.Marshal(publicKey.Curve, publicKey.X, publicKey.Y)
+	buf = append(buf, pk...)
+
+	digest := sha256.Sum256(buf)
+	_, asnSig := getASN1Signature(notRandom, privateKey, digest[:])
+	return asnSig
+}
+
 // getAttestationObject builds an attestation object for a webauth registration.
 func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) string {
 	bigNumStr := "123456789012345678901234567890123456789012345678901234567890123456789012345678"
@@ -107,10 +189,10 @@ func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, pr
 	if !ok {
 		panic("failed to set bigNumber to string")
 	}
-	attestationCertBytes := GetCertBytes(privateKey, bigNum, bigStrNotRandom1)
+	attestationCertBytes := getCertBytes(privateKey, bigNum, bigStrNotRandom1)
 
 	notRandomReader := strings.NewReader(bigStrNotRandom1)
-	signature := GetSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey)
+	signature := getSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey)
 
 	attObj := protocol.AttestationObject{
 		Format: "fido-u2f",
@@ -156,19 +238,31 @@ type U2fRegistrationResponse struct {
 // Although the api server wouldn't normally deal with a challenge and keyHandle,
 //   including them here allows for more predictability with the test results
 func U2fRegistration(w http.ResponseWriter, r *http.Request) {
-	err := r.ParseForm()
+	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
 		panic(err)
 	}
-	challenge := r.Form.Get("challenge")
-	rpID := r.Form.Get("relying_party_id")
-	keyHandle := r.Form.Get("keyHandle")
 
+	var reqParams map[string]string
+	if err := json.Unmarshal(reqBody, &reqParams); err != nil {
+		panic(err)
+	}
+	log.Printf("U2fRegistration httpRequest: %v", reqParams)
+
+	challenge := reqParams["challenge"]
+	if challenge == "" {
+		panic("'challenge' POST param is required.")
+	}
+	challenge = fixStringEncoding(challenge)
+
+	keyHandle := reqParams["keyHandle"]
 	if keyHandle == "" {
 		keyHandle = DefaultKeyHandle
 	}
+	rpID := r.Header.Get("x-mfa-RPID")
+	rpOrigin := r.Header.Get("x-mfa-RPOrigin")
 
-	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
+	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, rpOrigin)
 	authDataStr, authDataBytes, privateKey := getAuthDataAndPrivateKey(rpID, keyHandle)
 
 	attestationObject := getAttestationObject(authDataBytes, clientData, keyHandle, privateKey)

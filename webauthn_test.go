@@ -33,6 +33,7 @@ const (
 	testRpId                    = "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvA"
 
 	AssertionTypeFido = "fido-u2f"
+	testRpOrigin      = "localhost"
 )
 
 func getTestAssertionResponse(credID, authData, clientData, attestationObject string) []byte {
@@ -270,7 +271,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "TestRPName", // Display Name for your site
 		RPID:          localAppID,   // Generally the FQDN for your site
-		RPOrigin:      localAppID,
+		RPOrigin:      testRpOrigin,
 		Debug:         true,
 	})
 
@@ -298,7 +299,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
 	const credID = "dmlydEtleTExLTA"
-	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
+	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, testRpOrigin)
 
 	keyHandle1 := "virtualkey11"
 	keyHandle2 := "virtualkey12"
@@ -567,6 +568,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "TestRPName", // Display Name for your site
 		RPID:          localAppID,   // Generally the FQDN for your site
+		RPOrigin:      testRpOrigin,
 		Debug:         true,
 	})
 
@@ -590,7 +592,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	keyHandle2 := "virtKey12"
 	authData2, authDataBytes2, privateKey2 := getAuthDataAndPrivateKey(localAppID, keyHandle2)
 
-	clientData, cdBytes := getClientDataJson("webauthn.get", challenge)
+	clientData, cdBytes := getClientDataJson("webauthn.get", challenge, testRpOrigin)
 	publicKey1 := GetPublicKeyAsBytes(privateKey1)
 	publicKey2 := GetPublicKeyAsBytes(privateKey2)
 
@@ -929,7 +931,7 @@ func (ms *MfaSuite) Test_PrintRegistrationData() {
 	const challenge = "uwFKfrE97BmrYafR8TendR2JmldzEeCzZE1g/Aabm7o="
 
 	const credID = "dmlydEtleTExLTA"
-	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
+	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, testRpOrigin)
 
 	keyHandle1 := "virtualkey11"
 

@@ -8,6 +8,7 @@ import (
 	"encoding/asn1"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"math/big"
@@ -215,14 +216,17 @@ type U2fRegistrationResponse struct {
 }
 
 // U2fRegistration is intended to assist with automated testing by
-//   returning to an api server what a client
+//   returning to an api server something similar to what a client
 //   would return following a registration ceremony with a U2F key
 // It expects a POST call with the following elements in the body/form
 //	"challenge"
-//	"relying_party_id"
 //	"keyHandle" (optional)
-// Although the api server wouldn't normally deal with a challenge and keyHandle,
-//   including them here allows for more predictability with the test results
+//   (Although the api server wouldn't normally deal with a challenge and keyHandle,
+//    including them here allows for more predictability with the test results.)
+// It also expects the following headers to be set on the request
+//	"x-mfa-RPID"
+//  "x-mfa-RPOrigin"
+//  "x-mfa-UserUUID"
 func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -247,16 +251,23 @@ func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 	}
 	rpID := r.Header.Get("x-mfa-RPID")
 	rpOrigin := r.Header.Get("x-mfa-RPOrigin")
+	id := r.Header.Get("x-mfa-UserUUID")
+
+	required := map[string]string{
+		"x-mfa-RPID":     rpID,
+		"x-mfa-RPOrigin": rpOrigin,
+		"x-mfa-UserUUID": id,
+	}
+	for key, value := range required {
+		if value == "" {
+			panic(fmt.Sprintf("'%s' header is required.", key))
+		}
+	}
 
 	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, rpOrigin)
 	authDataStr, authDataBytes, privateKey := getAuthDataAndPrivateKey(rpID, keyHandle)
 
 	attestationObject := getAttestationObject(authDataBytes, clientData, keyHandle, privateKey, rpOrigin)
-
-	id := r.Header.Get("x-mfa-UserUUID")
-	if id == "" {
-		panic("'x-mfa-UserUUID' header is required.")
-	}
 
 	resp := U2fRegistrationResponse{
 		ID:    id,

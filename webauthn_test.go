@@ -925,24 +925,3 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 		})
 	}
 }
-
-func (ms *MfaSuite) Test_PrintRegistrationData() {
-	//const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
-	const challenge = "uwFKfrE97BmrYafR8TendR2JmldzEeCzZE1g/Aabm7o="
-
-	const credID = "dmlydEtleTExLTA"
-	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, testRpOrigin)
-
-	keyHandle1 := "virtualkey11"
-
-	// These are emulated Yubikey values
-	authData1, authDataBytes1, privateKey1 := getAuthDataAndPrivateKey(localAppID, keyHandle1)
-	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1, localAppID)
-
-	fmt.Printf("\n\nTest data\nCredential ID: %s\n", credID)
-	fmt.Printf("Challenge: %s\n", challenge)
-	fmt.Printf("clientData: %s\n", clientDataStr)
-	fmt.Printf("authData1: %s\n", authData1)
-	fmt.Printf("attestObject1: %s\n", attestObject1)
-	//ms.Fail("Just showing test data")
-}

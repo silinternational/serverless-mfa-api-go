@@ -10,10 +10,11 @@ func (ms *MfaSuite) Test_U2fRegistration() {
 
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
+	rpID := "http://ourTestApp"
+
 	httpWriter := newLambdaResponseWriter()
 	requestBody, err := json.Marshal(map[string]string{
-		"challenge":        challenge,
-		"relying_party_id": "ourTestApp",
+		"challenge": challenge,
 	})
 	ms.NoError(err, "error just creating body params for test")
 
@@ -21,6 +22,8 @@ func (ms *MfaSuite) Test_U2fRegistration() {
 	ms.NoError(err, "error just creating http request for test")
 
 	httpRequest.Header.Set("x-mfa-UserUUID", "the-id-of-the-dynamo-user")
+	httpRequest.Header.Set("x-mfa-RPID", rpID)
+	httpRequest.Header.Set("x-mfa-RPOrigin", rpID)
 
 	U2fRegistration(httpWriter, httpRequest)
 

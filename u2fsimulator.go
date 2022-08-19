@@ -145,7 +145,7 @@ func getASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256D
 	return dsaSig, asnSig
 }
 
-// getSignatureForAttObject starts with byte(0) and appends the sha256 sum of the localAppID and of the clientData
+// getSignatureForAttObject starts with byte(0) and appends the sha256 sum of the rpOrigin and of the clientData
 //  and then appends the keyHandle and an elliptic Marshalled version of the public key
 //  It does a sha256 sum of that and creates a dsa signature of it with the private key and without using any
 //  randomizing

@@ -11,7 +11,6 @@ import (
 	"io"
 	"log"
 	"math/big"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -23,24 +22,11 @@ import (
 
 const DefaultKeyHandle = `U2fSimulatorKey`
 
-func randomString(n int) string {
-	rand.Seed(time.Now().UnixNano())
-	includeLetters := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_0123456789"
-	letters := []rune(includeLetters)
-	b := make([]rune, n)
-	for i := range b {
-		b[i] = letters[rand.Intn(len(letters))] // #nosec G404
-	}
-	return string(b)
-}
-
 func getClientDataJson(ceremonyType, challenge string, rpOrigin string) (string, []byte) {
 	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
 		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
 
 	}
-	rpOrigin = strings.Replace(rpOrigin, "http://", "", 1)
-	rpOrigin = strings.Replace(rpOrigin, "https://", "", 1)
 
 	cd := ClientData{
 		Typ:       ceremonyType,
@@ -162,9 +148,9 @@ func getASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256D
 //  and then appends the keyHandle and an elliptic Marshalled version of the public key
 //  It does a sha256 sum of that and creates a dsa signature of it with the private key and without using any
 //  randomizing
-func getSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) []byte {
+func getSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey, rpOrigin string) []byte {
 
-	appParam := sha256.Sum256([]byte(localAppID))
+	appParam := sha256.Sum256([]byte(rpOrigin))
 	challenge := sha256.Sum256(clientData)
 
 	publicKey := privateKey.PublicKey
@@ -182,7 +168,7 @@ func getSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle 
 }
 
 // getAttestationObject builds an attestation object for a webauth registration.
-func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey) string {
+func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey, rpOrigin string) string {
 	bigNumStr := "123456789012345678901234567890123456789012345678901234567890123456789012345678"
 	bigNum := new(big.Int)
 	bigNum, ok := bigNum.SetString(bigNumStr, 10)
@@ -192,7 +178,7 @@ func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, pr
 	attestationCertBytes := getCertBytes(privateKey, bigNum, bigStrNotRandom1)
 
 	notRandomReader := strings.NewReader(bigStrNotRandom1)
-	signature := getSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey)
+	signature := getSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey, rpOrigin)
 
 	attObj := protocol.AttestationObject{
 		Format: "fido-u2f",
@@ -265,9 +251,12 @@ func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, rpOrigin)
 	authDataStr, authDataBytes, privateKey := getAuthDataAndPrivateKey(rpID, keyHandle)
 
-	attestationObject := getAttestationObject(authDataBytes, clientData, keyHandle, privateKey)
+	attestationObject := getAttestationObject(authDataBytes, clientData, keyHandle, privateKey, rpOrigin)
 
-	id := randomString(43)
+	id := r.Header.Get("x-mfa-UserUUID")
+	if id == "" {
+		panic("'x-mfa-UserUUID' header is required.")
+	}
 
 	resp := U2fRegistrationResponse{
 		ID:    id,

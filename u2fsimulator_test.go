@@ -20,6 +20,8 @@ func (ms *MfaSuite) Test_U2fRegistration() {
 	httpRequest, err := http.NewRequest(http.MethodPost, "https://example.com", bytes.NewBuffer(requestBody))
 	ms.NoError(err, "error just creating http request for test")
 
+	httpRequest.Header.Set("x-mfa-UserUUID", "the-id-of-the-dynamo-user")
+
 	U2fRegistration(httpWriter, httpRequest)
 
 	gotBody := string(httpWriter.Body)

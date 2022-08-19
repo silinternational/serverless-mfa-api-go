@@ -306,11 +306,11 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 
 	// These are emulated Yubikey values
 	authData1, authDataBytes1, privateKey1 := getAuthDataAndPrivateKey(localAppID, keyHandle1)
-	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
+	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1, localAppID)
 	reqWithBody1 := getTestAssertionRequest(credID, authData1, clientDataStr, attestObject1, &testUser)
 
-	authData2, authDataBytes2, privateKey2 := getAuthDataAndPrivateKey(localAppID, "virtualkey12")
-	attestObject2 := getAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2)
+	authData2, authDataBytes2, privateKey2 := getAuthDataAndPrivateKey(localAppID, keyHandle2)
+	attestObject2 := getAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2, localAppID)
 	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientDataStr, attestObject2, &testUser)
 
 	localStorage.Store(envConfig.WebauthnTable, &testUser)
@@ -937,7 +937,7 @@ func (ms *MfaSuite) Test_PrintRegistrationData() {
 
 	// These are emulated Yubikey values
 	authData1, authDataBytes1, privateKey1 := getAuthDataAndPrivateKey(localAppID, keyHandle1)
-	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
+	attestObject1 := getAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1, localAppID)
 
 	fmt.Printf("\n\nTest data\nCredential ID: %s\n", credID)
 	fmt.Printf("Challenge: %s\n", challenge)

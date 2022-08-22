@@ -19,6 +19,8 @@ import (
 	"github.com/duo-labs/webauthn/webauthn"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
+
+	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
 )
 
 // These come from https://github.com/duo-labs/webauthn/blob/23776d77aa561cf1d5cf9f10a65daab336a1d399/protocol/assertion_test.go
@@ -33,6 +35,7 @@ const (
 	testRpId                    = "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvA"
 
 	AssertionTypeFido = "fido-u2f"
+	testRpOrigin      = "localhost"
 )
 
 func getTestAssertionResponse(credID, authData, clientData, attestationObject string) []byte {
@@ -270,7 +273,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "TestRPName", // Display Name for your site
 		RPID:          localAppID,   // Generally the FQDN for your site
-		RPOrigin:      localAppID,
+		RPOrigin:      testRpOrigin,
 		Debug:         true,
 	})
 
@@ -298,18 +301,18 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
 	const credID = "dmlydEtleTExLTA"
-	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge)
+	clientDataStr, clientData := u2fsim.GetClientDataJson("webauthn.create", challenge, testRpOrigin)
 
 	keyHandle1 := "virtualkey11"
 	keyHandle2 := "virtualkey12"
 
 	// These are emulated Yubikey values
-	authData1, authDataBytes1, privateKey1 := GetAuthDataAndPrivateKey(localAppID, keyHandle1)
-	attestObject1 := GetAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1)
+	authData1, authDataBytes1, privateKey1 := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle1)
+	attestObject1 := u2fsim.GetAttestationObject(authDataBytes1, clientData, keyHandle1, privateKey1, localAppID)
 	reqWithBody1 := getTestAssertionRequest(credID, authData1, clientDataStr, attestObject1, &testUser)
 
-	authData2, authDataBytes2, privateKey2 := GetAuthDataAndPrivateKey(localAppID, "virtualkey12")
-	attestObject2 := GetAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2)
+	authData2, authDataBytes2, privateKey2 := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle2)
+	attestObject2 := u2fsim.GetAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2, localAppID)
 	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientDataStr, attestObject2, &testUser)
 
 	localStorage.Store(envConfig.WebauthnTable, &testUser)
@@ -567,6 +570,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: "TestRPName", // Display Name for your site
 		RPID:          localAppID,   // Generally the FQDN for your site
+		RPOrigin:      testRpOrigin,
 		Debug:         true,
 	})
 
@@ -585,12 +589,12 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	keyHandle1 := "virtKey11"
-	authData1, authDataBytes1, privateKey1 := GetAuthDataAndPrivateKey(localAppID, keyHandle1)
+	authData1, authDataBytes1, privateKey1 := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle1)
 
 	keyHandle2 := "virtKey12"
-	authData2, authDataBytes2, privateKey2 := GetAuthDataAndPrivateKey(localAppID, keyHandle2)
+	authData2, authDataBytes2, privateKey2 := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle2)
 
-	clientData, cdBytes := getClientDataJson("webauthn.get", challenge)
+	clientData, cdBytes := u2fsim.GetClientDataJson("webauthn.get", challenge, testRpOrigin)
 	publicKey1 := GetPublicKeyAsBytes(privateKey1)
 	publicKey2 := GetPublicKeyAsBytes(privateKey2)
 
@@ -734,7 +738,7 @@ func Test_GetSignatureForLogin(t *testing.T) {
 	xyData = append(xyData, bigXY.Bytes()...)
 
 	keyHandle := "virtKey11"
-	_, authDataBytes1, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
+	_, authDataBytes1, privateKey := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle)
 	signature := GenerateAuthenticationSig(authDataBytes1, clientData, privateKey)
 
 	want := "MEYCIQDH_BmLNjJNqS8b725jiqzyc5JZmNh8wYuaPBH3PjELMwIhANsuNznzM92SrYonfrX9-nL4CzOhuiOSxkZ7YFmOkTdd"
@@ -744,7 +748,7 @@ func Test_GetSignatureForLogin(t *testing.T) {
 func Test_GetAuthDataAndPrivateKey(t *testing.T) {
 	assert := require.New(t)
 	keyHandle := "virtKey11"
-	authData, authDataBytes, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
+	authData, authDataBytes, privateKey := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle)
 
 	want := `hgW4ugjCDUL55FUVGHGJbQ4N6YBZYob7c20R7sAT4qRBAAAAAAAAAAAAAAAAAAAAAAAAAAAACXZpcnRLZXkxMaQBAgMmIVggBtYaQhitMvmuvKeeUZmuh96TmXTRGxB_6bfslWmTVF4iWCCK1h-O_T8R6MjkIWCsX-Pry8RJhuOxbDwovnYJBu0SZw`
 	assert.Equal(want, authData, "incorrect bare authentication data")
@@ -757,7 +761,7 @@ func Test_GetAuthDataAndPrivateKey(t *testing.T) {
 func Test_GetPublicKeyAsBytes(t *testing.T) {
 	assert := require.New(t)
 	const keyHandle = "virtKey11"
-	_, _, privateKey := GetAuthDataAndPrivateKey(localAppID, keyHandle)
+	_, _, privateKey := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle)
 
 	got := GetPublicKeyAsBytes(privateKey)
 

@@ -37,7 +37,7 @@ type route struct {
 
 // Define our routes.
 var routes = []route{
-	//   For information on this, see the doc comment for mfa.U2fRegistration
+	//   For information on this, see the doc comment for u2fsimulator.U2fRegistration
 	{
 		"RegistrationResponse",
 		"POST",

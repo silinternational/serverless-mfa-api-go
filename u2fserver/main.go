@@ -51,15 +51,6 @@ func newRouter(mws []mux.MiddlewareFunc) *mux.Router {
 	// Create a basic router.
 	router := mux.NewRouter().StrictSlash(true)
 
-	// attach any extra middleware
-	//for _, mw := range mws {
-	//	router.Use(mw)
-	//}
-
-	// authenticate request based on api key and secret in headers
-	// also adds user to context
-	//router.Use(authenticationMiddleware)
-
 	// Assign the handlers to run when endpoints are called.
 	for _, route := range routes {
 		// Create a handler function.

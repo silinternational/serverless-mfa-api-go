@@ -6,6 +6,7 @@
 !codeship/*
 !lambda/*
 !server/*
+!u2fsimulator/*
 !go.*
 !*.go
 !serverless.yml

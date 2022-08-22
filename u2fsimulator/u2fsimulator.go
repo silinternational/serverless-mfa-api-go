@@ -195,6 +195,8 @@ func getCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReade
 	return certBytes
 }
 
+// GetASN1Signature signs a hash (which should be the result of hashing a larger message)
+// using the private key.
 func GetASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (DsaSignature, []byte) {
 
 	r, s, err := ecdsa.Sign(notRandom, privateKey, sha256Digest[:])

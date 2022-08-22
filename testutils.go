@@ -5,28 +5,17 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"math/big"
 	"os"
 	"strings"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
+
+	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
 )
 
-const (
-	localAppID = "http://localhost"
-
-	// The authenticatorData value includes bytes that refer to these flags.
-	// Multiple flags can be combined through addition. For example,
-	// including the UserPresent (UP) and AttestedCredentialData (AT) flags would be done
-	// by using the value 65.
-	// AT(64) + UP(1) = 65
-	AttObjFlagUserPresent_UP      = 1
-	AttObjFlagUserVerified_UV     = 2
-	AttObjFlagAttestedCredData_AT = 64
-	AttObjFlagExtensionData_ED    = 128
-)
+const localAppID = "http://localhost"
 
 func testAwsConfig() aws.Config {
 	return aws.Config{
@@ -121,20 +110,11 @@ func encodeBase64(buf []byte) string {
 	return strings.TrimRight(s, "=")
 }
 
-// Using this instead of rand.Reader, in order to have consistent
-//  private and public keys, which allows for comparison when tests fail
-const bigStrNotRandom1 = "11111111111111111111111111111111111111111"
-
 // SignResponse as defined by the FIDO U2F Javascript API.
 type SignResponse struct {
 	KeyHandle     string `json:"keyHandle"`
 	SignatureData string `json:"signatureData"`
 	ClientData    string `json:"clientData"`
-}
-
-// Internal type for ASN1 coercion
-type dsaSignature struct {
-	R, S *big.Int
 }
 
 // ClientData as defined by the FIDO U2F Raw Message Formats specification.
@@ -160,9 +140,9 @@ func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.Pr
 	h.Write(signatureData)
 
 	signHash := h.Sum(nil)
-	notRandomReader := strings.NewReader(bigStrNotRandom1)
+	notRandomReader := strings.NewReader(u2fsim.BigStrNotRandom1)
 
-	dsaSig, asnSig := getASN1Signature(notRandomReader, privateKey, signHash)
+	dsaSig, asnSig := u2fsim.GetASN1Signature(notRandomReader, privateKey, signHash)
 
 	if !ecdsa.Verify(&publicKey, signHash, dsaSig.R, dsaSig.S) {
 		panic("start signature is not getting verified for some reason")

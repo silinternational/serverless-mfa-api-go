@@ -2,15 +2,14 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/gorilla/mux"
-	"github.com/kelseyhightower/envconfig"
 
 	mfa "github.com/silinternational/serverless-mfa-api-go"
+	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
 )
 
 var (
@@ -19,19 +18,12 @@ var (
 
 func main() {
 	log.SetOutput(os.Stdout)
-	log.Println("Server starting...")
-
-	err := envconfig.Process("", &envConfig)
-	if err != nil {
-		log.Fatal(fmt.Errorf("error loading env vars: " + err.Error()))
-	}
-	envConfig.InitAWS()
-	mfa.SetConfig(envConfig)
+	log.Println("U2f Simulator Server starting...")
 
 	// ListenAndServe starts an HTTP server with a given address and
 	// handler defined in NewRouter.
 	log.Println("Starting service on port 8080")
-	router := newRouter([]mux.MiddlewareFunc{corsMiddleware})
+	router := newRouter(nil)
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -45,45 +37,12 @@ type route struct {
 
 // Define our routes.
 var routes = []route{
+	//   For information on this, see the doc comment for u2fsimulator.U2fRegistration
 	{
-		"BeginRegistration",
+		"RegistrationResponse",
 		"POST",
-		"/webauthn/register",
-		mfa.BeginRegistration,
-	},
-	{
-		"FinishRegistration",
-		"PUT",
-		"/webauthn/register",
-		mfa.FinishRegistration,
-	},
-	{
-		"BeginLogin",
-		"POST",
-		"/webauthn/login",
-		mfa.BeginLogin,
-	},
-	{
-		"FinishLogin",
-		"PUT",
-		"/webauthn/login",
-		mfa.FinishLogin,
-	},
-	{
-		"DeleteUser",
-		"DELETE",
-		"/webauthn/user",
-		mfa.DeleteUser,
-	},
-	{ // This expects a path param that is the id that was previously returned
-		// as the key_handle_hash from the FinishRegistration call.
-		// Alternatively, if the id param indicates that a legacy U2F key should be removed
-		//	 (e.g. by matching the string "u2f")
-		//   then that user is saved with all of its legacy u2f fields blanked out.
-		"DeleteCredential",
-		"DELETE",
-		fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),
-		mfa.DeleteCredential,
+		"/u2f/registration",
+		u2fsim.U2fRegistration,
 	},
 }
 
@@ -91,15 +50,6 @@ var routes = []route{
 func newRouter(mws []mux.MiddlewareFunc) *mux.Router {
 	// Create a basic router.
 	router := mux.NewRouter().StrictSlash(true)
-
-	// attach any extra middleware
-	for _, mw := range mws {
-		router.Use(mw)
-	}
-
-	// authenticate request based on api key and secret in headers
-	// also adds user to context
-	router.Use(authenticationMiddleware)
 
 	// Assign the handlers to run when endpoints are called.
 	for _, route := range routes {

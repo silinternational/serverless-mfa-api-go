@@ -1,4 +1,4 @@
-package mfa
+package u2fsimulator
 
 import (
 	"crypto/ecdsa"
@@ -21,12 +21,78 @@ import (
 	"github.com/duo-labs/webauthn/protocol/webauthncose"
 )
 
-const DefaultKeyHandle = `U2fSimulatorKey`
+const (
+	DefaultKeyHandle = `U2fSimulatorKey`
 
-func getClientDataJson(ceremonyType, challenge string, rpOrigin string) (string, []byte) {
+	// Using this instead of rand.Reader, in order to have consistent
+	//  private and public keys, which allows for comparison when tests fail
+	BigStrNotRandom1 = "11111111111111111111111111111111111111111"
+
+	// The authenticatorData value includes bytes that refer to these flags.
+	// Multiple flags can be combined through addition. For example,
+	// including the UserPresent (UP) and AttestedCredentialData (AT) flags would be done
+	// by using the value 65.
+	// AT(64) + UP(1) = 65
+	AttObjFlagUserPresent_UP      = 1
+	AttObjFlagUserVerified_UV     = 2
+	AttObjFlagAttestedCredData_AT = 64
+	AttObjFlagExtensionData_ED    = 128
+)
+
+// Internal type for ASN1 coercion
+type DsaSignature struct {
+	R, S *big.Int
+}
+
+// ClientData as defined by the FIDO U2F Raw Message Formats specification.
+type ClientData struct {
+	Typ          string          `json:"type"`
+	Challenge    string          `json:"challenge"`
+	Origin       string          `json:"origin"`
+	CIDPublicKey json.RawMessage `json:"cid_pubkey"`
+}
+
+func fixStringEncoding(content string) string {
+	content = strings.ReplaceAll(content, "+", "-")
+	content = strings.ReplaceAll(content, "/", "_")
+	content = strings.ReplaceAll(content, "=", "")
+	return content
+}
+
+func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
+	var data interface{}
+	switch b := body.(type) {
+	case error:
+		data = struct {
+			Error string `json:"error"`
+		}{Error: b.Error()}
+	default:
+		data = body
+	}
+
+	jBody := []byte{}
+	var err error
+	if data != nil {
+		jBody, err = json.Marshal(data)
+		if err != nil {
+			log.Printf("failed to marshal response body to json: %s\n", err.Error())
+			w.WriteHeader(http.StatusInternalServerError)
+			_, _ = w.Write([]byte("failed to marshal response body to json"))
+			return
+		}
+	}
+
+	w.Header().Set("content-type", "application/json")
+	w.WriteHeader(status)
+	_, err = w.Write(jBody)
+	if err != nil {
+		log.Printf("faild to write response in jsonResponse: %s\n", err)
+	}
+}
+
+func GetClientDataJson(ceremonyType, challenge, rpOrigin string) (string, []byte) {
 	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
 		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
-
 	}
 
 	cd := ClientData{
@@ -44,7 +110,7 @@ func getClientDataJson(ceremonyType, challenge string, rpOrigin string) (string,
 // getPrivateKey returns a newly generated ecdsa private key without using any kind of randomizing
 func getPrivateKey() *ecdsa.PrivateKey {
 	curve := elliptic.P256()
-	notRandomReader := strings.NewReader(bigStrNotRandom1)
+	notRandomReader := strings.NewReader(BigStrNotRandom1)
 	privateKey, err := ecdsa.GenerateKey(curve, notRandomReader)
 	if err != nil {
 		panic("error generating privateKey: " + err.Error())
@@ -53,9 +119,9 @@ func getPrivateKey() *ecdsa.PrivateKey {
 	return privateKey
 }
 
-// getAuthDataAndPrivateKey return the authentication data as a string and as a byte slice
+// GetAuthDataAndPrivateKey return the authentication data as a string and as a byte slice
 //   and also returns the private key
-func getAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
+func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
 	// Add in the RP ID Hash (32 bytes)
 	RPIDHash := sha256.Sum256([]byte(rpID))
 	for _, r := range RPIDHash {
@@ -128,14 +194,16 @@ func getCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReade
 	return certBytes
 }
 
-func getASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (dsaSignature, []byte) {
+// GetASN1Signature signs a hash (which should be the result of hashing a larger message)
+// using the private key.
+func GetASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (DsaSignature, []byte) {
 
 	r, s, err := ecdsa.Sign(notRandom, privateKey, sha256Digest[:])
 	if err != nil {
 		panic("error generating signature: " + err.Error())
 	}
 
-	dsaSig := dsaSignature{R: r, S: s}
+	dsaSig := DsaSignature{R: r, S: s}
 
 	asnSig, err := asn1.Marshal(dsaSig)
 	if err != nil {
@@ -164,21 +232,21 @@ func getSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle 
 	buf = append(buf, pk...)
 
 	digest := sha256.Sum256(buf)
-	_, asnSig := getASN1Signature(notRandom, privateKey, digest[:])
+	_, asnSig := GetASN1Signature(notRandom, privateKey, digest[:])
 	return asnSig
 }
 
-// getAttestationObject builds an attestation object for a webauth registration.
-func getAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey, rpOrigin string) string {
+// GetAttestationObject builds an attestation object for a webauth registration.
+func GetAttestationObject(authDataBytes, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey, rpOrigin string) string {
 	bigNumStr := "123456789012345678901234567890123456789012345678901234567890123456789012345678"
 	bigNum := new(big.Int)
 	bigNum, ok := bigNum.SetString(bigNumStr, 10)
 	if !ok {
 		panic("failed to set bigNumber to string")
 	}
-	attestationCertBytes := getCertBytes(privateKey, bigNum, bigStrNotRandom1)
+	attestationCertBytes := getCertBytes(privateKey, bigNum, BigStrNotRandom1)
 
-	notRandomReader := strings.NewReader(bigStrNotRandom1)
+	notRandomReader := strings.NewReader(BigStrNotRandom1)
 	signature := getSignatureForAttObject(notRandomReader, clientData, keyHandle, privateKey, rpOrigin)
 
 	attObj := protocol.AttestationObject{
@@ -264,10 +332,10 @@ func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	clientDataStr, clientData := getClientDataJson("webauthn.create", challenge, rpOrigin)
-	authDataStr, authDataBytes, privateKey := getAuthDataAndPrivateKey(rpID, keyHandle)
+	clientDataStr, clientData := GetClientDataJson("webauthn.create", challenge, rpOrigin)
+	authDataStr, authDataBytes, privateKey := GetAuthDataAndPrivateKey(rpID, keyHandle)
 
-	attestationObject := getAttestationObject(authDataBytes, clientData, keyHandle, privateKey, rpOrigin)
+	attestationObject := GetAttestationObject(authDataBytes, clientData, keyHandle, privateKey, rpOrigin)
 
 	resp := U2fRegistrationResponse{
 		ID:    id,

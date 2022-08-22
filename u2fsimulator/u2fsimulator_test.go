@@ -17,26 +17,25 @@ func newHttpResponseWriter() *httpResponseWriter {
 		Headers: http.Header{},
 	}
 }
-func (l *httpResponseWriter) Header() http.Header {
-	return l.Headers
+func (w *httpResponseWriter) Header() http.Header {
+	return w.Headers
 }
 
-func (l *httpResponseWriter) Write(contents []byte) (int, error) {
+func (w *httpResponseWriter) Write(contents []byte) (int, error) {
 	// If WriteHeader has not been called, Write is supposed to set default status code
-	if l.Status == 0 {
-		l.Status = http.StatusOK
+	if w.Status == 0 {
+		w.Status = http.StatusOK
 	}
 
-	l.Body = append(l.Body, contents...)
-	return len(l.Body), nil
+	w.Body = append(w.Body, contents...)
+	return len(w.Body), nil
 }
 
-func (l *httpResponseWriter) WriteHeader(statusCode int) {
-	l.Status = statusCode
+func (w *httpResponseWriter) WriteHeader(statusCode int) {
+	w.Status = statusCode
 }
 
 func (us *U2fSuite) Test_U2fRegistration() {
-
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	rpID := "http://ourTestApp"

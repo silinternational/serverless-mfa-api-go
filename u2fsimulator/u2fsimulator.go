@@ -90,10 +90,9 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	}
 }
 
-func GetClientDataJson(ceremonyType, challenge string, rpOrigin string) (string, []byte) {
+func GetClientDataJson(ceremonyType, challenge, rpOrigin string) (string, []byte) {
 	if ceremonyType != "webauthn.create" && ceremonyType != "webauthn.get" {
 		panic(`ceremonyType must be "webauthn.create" or "webauthn.get"`)
-
 	}
 
 	cd := ClientData{

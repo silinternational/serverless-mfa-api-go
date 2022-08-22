@@ -2,13 +2,11 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
 
 	"github.com/gorilla/mux"
-	"github.com/kelseyhightower/envconfig"
 
 	mfa "github.com/silinternational/serverless-mfa-api-go"
 	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
@@ -21,13 +19,6 @@ var (
 func main() {
 	log.SetOutput(os.Stdout)
 	log.Println("U2f Simulator Server starting...")
-
-	err := envconfig.Process("", &envConfig)
-	if err != nil {
-		log.Fatal(fmt.Errorf("error loading env vars: " + err.Error()))
-	}
-	envConfig.InitAWS()
-	mfa.SetConfig(envConfig)
 
 	// ListenAndServe starts an HTTP server with a given address and
 	// handler defined in NewRouter.

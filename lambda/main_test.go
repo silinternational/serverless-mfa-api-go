@@ -1,14 +1,16 @@
 package main
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/gorilla/mux"
+	mfa "github.com/silinternational/serverless-mfa-api-go"
 	"github.com/stretchr/testify/require"
 )
 
-func TestApiKey_IsCorrect(t *testing.T) {
-
+func TestCredentialToDelete(t *testing.T) {
 	assert := require.New(t)
 
 	tests := []struct {
@@ -65,4 +67,16 @@ func TestApiKey_IsCorrect(t *testing.T) {
 			assert.Equal(tt.wantId, gotId, "test %s: incorrect credential ID", tt.name)
 		})
 	}
+}
+
+func TestAddDeleteCredentialParamForMux(t *testing.T) {
+	assert := require.New(t)
+	r := httptest.NewRequest("DELETE", "/webauthn/credential/abc123", nil)
+
+	credId := "abc123"
+	r = addDeleteCredentialParamForMux(r, mfa.IDParam, credId)
+	params := mux.Vars(r)
+	got, ok := params[mfa.IDParam]
+	assert.True(ok, "didn't find key in mux vars: %v", params)
+	assert.Equal(credId, got, "incorrect param value")
 }

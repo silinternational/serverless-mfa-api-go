@@ -78,8 +78,7 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	// Alternatively, if the id param indicates that a legacy U2F key should be removed
 	//   (e.g. by matching the string "u2f")
 	//   then that user is saved with all of its legacy u2f fields blanked out.
-	credIdToDelete, ok := credentialToDelete(req)
-	if ok {
+	if credIdToDelete, ok := credentialToDelete(req); ok {
 		// add the id to the context in order for mux to retrieve it
 		nctx := context.WithValue(r.Context(), mfa.IDParam, credIdToDelete)
 		r = r.WithContext(nctx)

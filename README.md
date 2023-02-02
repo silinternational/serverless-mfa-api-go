@@ -32,3 +32,18 @@ to do with WebAuthn, but is the primary key for finding the right records in Dyn
 
 ### Begin Registration
 `POST /webauthn/register`
+
+### Finish Registration
+`PUT /webauthn/register`
+
+### Begin Login
+`POST /webauthn/login`
+
+### Finish Login
+`PUT /webauthn/login`
+
+### Delete Webauthn "User"
+`DELETE /webauthn/user`
+
+### Delete one of the user's Webauthn credentials
+`DELETE /webauthn/credential`

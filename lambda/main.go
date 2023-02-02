@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/gorilla/mux"
 	"github.com/kelseyhightower/envconfig"
 
 	mfa "github.com/silinternational/serverless-mfa-api-go"
@@ -58,6 +59,11 @@ func credentialToDelete(req events.APIGatewayProxyRequest) (string, bool) {
 	return credID, true
 }
 
+func addDeleteCredentialParamForMux(r *http.Request, key, value string) *http.Request {
+	vars := map[string]string{key: value}
+	return mux.SetURLVars(r, vars)
+}
+
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	r := httpRequestFromProxyRequest(ctx, req)
 	user, err := mfa.AuthenticateRequest(r)
@@ -80,8 +86,8 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	//   then that user is saved with all of its legacy u2f fields blanked out.
 	if credIdToDelete, ok := credentialToDelete(req); ok {
 		// add the id to the context in order for mux to retrieve it
-		nctx := context.WithValue(r.Context(), mfa.IDParam, credIdToDelete)
-		r = r.WithContext(nctx)
+		// It appears that mux expects the parent context key to be 0
+		r = addDeleteCredentialParamForMux(r, mfa.IDParam, credIdToDelete)
 		mfa.DeleteCredential(w, r)
 		// Routes other than /webauthn/delete/credential/abc213
 	} else {

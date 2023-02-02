@@ -86,7 +86,6 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	//   then that user is saved with all of its legacy u2f fields blanked out.
 	if credIdToDelete, ok := credentialToDelete(req); ok {
 		// add the id to the context in order for mux to retrieve it
-		// It appears that mux expects the parent context key to be 0
 		r = addDeleteCredentialParamForMux(r, mfa.IDParam, credIdToDelete)
 		mfa.DeleteCredential(w, r)
 		// Routes other than /webauthn/delete/credential/abc213

@@ -47,14 +47,17 @@ func credentialToDelete(req events.APIGatewayProxyRequest) (string, bool) {
 	if strings.ToLower(req.HTTPMethod) != `delete` {
 		return "", false
 	}
+
 	path := req.Path
+	if !strings.HasPrefix(path, "/webauthn/credential/") {
+		return "", false
+	}
+
 	parts := strings.Split(path, `/`)
-	if len(parts) < 4 {
+	if len(parts) != 4 {
 		return "", false
 	}
-	if parts[0] != "" || parts[1] != "webauthn" || parts[2] != "credential" {
-		return "", false
-	}
+
 	credID := parts[3]
 	return credID, true
 }

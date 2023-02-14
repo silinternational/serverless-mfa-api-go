@@ -4,7 +4,7 @@ go 1.18
 
 require (
 	github.com/aws/aws-lambda-go v1.27.0
-	github.com/aws/aws-sdk-go v1.33.0
+	github.com/aws/aws-sdk-go v1.34.0
 	github.com/duo-labs/webauthn v0.0.0-20220330035159-03696f3d4499
 	github.com/fxamacker/cbor/v2 v2.4.0
 	github.com/gorilla/mux v1.7.3

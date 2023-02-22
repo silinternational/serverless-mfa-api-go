@@ -12,6 +12,7 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	"github.com/gorilla/mux"
 	"github.com/kelseyhightower/envconfig"
 
 	mfa "github.com/silinternational/serverless-mfa-api-go"
@@ -42,6 +43,30 @@ func main() {
 	lambda.Start(handler)
 }
 
+func credentialToDelete(req events.APIGatewayProxyRequest) (string, bool) {
+	if strings.ToLower(req.HTTPMethod) != `delete` {
+		return "", false
+	}
+
+	path := req.Path
+	if !strings.HasPrefix(path, "/webauthn/credential/") {
+		return "", false
+	}
+
+	parts := strings.Split(path, `/`)
+	if len(parts) != 4 {
+		return "", false
+	}
+
+	credID := parts[3]
+	return credID, true
+}
+
+func addDeleteCredentialParamForMux(r *http.Request, key, value string) *http.Request {
+	vars := map[string]string{key: value}
+	return mux.SetURLVars(r, vars)
+}
+
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	r := httpRequestFromProxyRequest(ctx, req)
 	user, err := mfa.AuthenticateRequest(r)
@@ -56,30 +81,35 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	// Use custom lambda http.ResponseWriter
 	w := newLambdaResponseWriter()
 
-	route := strings.ToLower(fmt.Sprintf("%s %s", req.HTTPMethod, req.Path))
-
-	switch route {
-	case "post /webauthn/login":
-		mfa.BeginLogin(w, r)
-	case "put /webauthn/login":
-		mfa.FinishLogin(w, r)
-	case "post /webauthn/register":
-		mfa.BeginRegistration(w, r)
-	case "put /webauthn/register":
-		mfa.FinishRegistration(w, r)
-	case "delete /webauthn/user":
-		mfa.DeleteUser(w, r)
-	// This expects a path param that is the id that was previously returned as
+	// This (delete /webauthn/credential/abc123) expects a path param that is
+	//   the id that was previously returned as
 	//   the key_handle_hash from the FinishRegistration call.
 	// Alternatively, if the id param indicates that a legacy U2F key should be removed
 	//   (e.g. by matching the string "u2f")
 	//   then that user is saved with all of its legacy u2f fields blanked out.
-	case "delete /webauthn/credential":
+	if credIdToDelete, ok := credentialToDelete(req); ok {
+		// add the id to the context in order for mux to retrieve it
+		r = addDeleteCredentialParamForMux(r, mfa.IDParam, credIdToDelete)
 		mfa.DeleteCredential(w, r)
-	default:
-		return clientError(http.StatusNotFound, fmt.Sprintf("The requested route is not supported: %s", route))
-	}
+		// Routes other than /webauthn/delete/credential/abc213
+	} else {
+		route := strings.ToLower(fmt.Sprintf("%s %s", req.HTTPMethod, req.Path))
 
+		switch route {
+		case "post /webauthn/login":
+			mfa.BeginLogin(w, r)
+		case "put /webauthn/login":
+			mfa.FinishLogin(w, r)
+		case "post /webauthn/register":
+			mfa.BeginRegistration(w, r)
+		case "put /webauthn/register":
+			mfa.FinishRegistration(w, r)
+		case "delete /webauthn/user":
+			mfa.DeleteUser(w, r)
+		default:
+			return clientError(http.StatusNotFound, fmt.Sprintf("The requested route is not supported: %s", route))
+		}
+	}
 	headers := map[string]string{}
 	for k, v := range w.Header() {
 		headers[k] = v[0]

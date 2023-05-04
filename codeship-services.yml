@@ -28,13 +28,8 @@ dynamo:
     AWS_DEFAULT_REGION: us-east-1
   command: "-jar DynamoDBLocal.jar -sharedDb"
 
-tracker:
-  image: silintl/app-deployment-tracker-ga:latest
-  environment:
-    TRACKING_ID: UA-56269387-10
-
 ga4tracker:
-  image: silintl/ga-event-tracker:1.0.1
+  image: silintl/ga-event-tracker:1.0.2
   encrypted_env_file: aws.env.encrypted
   environment:
     GA_MEASUREMENT_ID: G-NY4R8HM3Y3

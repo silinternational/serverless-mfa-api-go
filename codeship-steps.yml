@@ -7,11 +7,6 @@
   tag: ^(main|develop)
   command: ./codeship/deploy.sh
 
-- name: track_deployment
-  service: tracker
-  tag: ^(main|develop)
-  command: "true"
-
 - name: push_develop
   service: app
   type: push

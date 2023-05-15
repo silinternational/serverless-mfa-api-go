@@ -77,3 +77,25 @@ variable "create_webauthn_table" {
   type    = bool
   default = true
 }
+
+/*
+ * AWS tag values
+ */
+
+variable "app_customer" {
+  description = "customer name to use for the itse_app_customer tag"
+  type        = string
+  default     = "shared"
+}
+
+variable "app_environment" {
+  description = "environment name to use for the itse_app_environment tag, e.g. staging, production"
+  type        = string
+  default     = "production"
+}
+
+variable "app_name_tag" {
+  description = "app name to use for the itse_app_name tag"
+  type        = string
+  default     = "idp"
+}

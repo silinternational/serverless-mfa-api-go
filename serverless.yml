@@ -19,7 +19,7 @@ provider:
 
   stackTags:
     itse_app_name: ${self:service}
-    itse_app_env: ${custom:${sls:stage}_env}
+    itse_app_env: ${self:custom.${sls:stage}_env}
     itse_app_customer: shared
     managed_by: serverless
 

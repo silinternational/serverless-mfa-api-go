@@ -25,18 +25,18 @@ wait:
 
 createwebauthntable:
 	AWS_ENDPOINT=http://localhost:8000 AWS_DEFAULT_REGION=local AWS_ACCESS_KEY_ID=abc123 AWS_SECRET_ACCESS_KEY=abc123 AWS_PAGER="" aws dynamodb create-table \
-        --table-name WebAuthn \
-        --billing-mode PAY_PER_REQUEST \
-        --attribute-definitions AttributeName=uuid,AttributeType=S \
-        --key-schema AttributeName=uuid,KeyType=HASH
+		--table-name WebAuthn \
+		--billing-mode PAY_PER_REQUEST \
+		--attribute-definitions AttributeName=uuid,AttributeType=S \
+		--key-schema AttributeName=uuid,KeyType=HASH
 
 # create ApiKey table with test key = EC7C2E16-5028-432F-8AF2-A79A64CF3BC1, secret = 1ED18444-7238-410B-A536-D6C15A3C
 createapikeytable:
 	AWS_ENDPOINT=http://localhost:8000 AWS_DEFAULT_REGION=local AWS_ACCESS_KEY_ID=abc123 AWS_SECRET_ACCESS_KEY=abc123 AWS_PAGER="" aws dynamodb create-table \
-        --table-name ApiKey \
-        --billing-mode PAY_PER_REQUEST \
-        --attribute-definitions AttributeName=value,AttributeType=S \
-        --key-schema AttributeName=value,KeyType=HASH
+		--table-name ApiKey \
+		--billing-mode PAY_PER_REQUEST \
+		--attribute-definitions AttributeName=value,AttributeType=S \
+		--key-schema AttributeName=value,KeyType=HASH
 	sleep 3
 	AWS_ENDPOINT=http://localhost:8000 AWS_DEFAULT_REGION=local AWS_ACCESS_KEY_ID=abc123 AWS_SECRET_ACCESS_KEY=abc123 aws dynamodb put-item \
 		--table-name ApiKey \
@@ -44,15 +44,15 @@ createapikeytable:
 
 showapikeys:
 	aws dynamodb scan \
-      --table-name ApiKey \
-      --endpoint-url http://localhost:8000 \
-      --region localhost
+		--table-name ApiKey \
+		--endpoint-url http://localhost:8000 \
+		--region localhost
 
 showwebauth:
 	aws dynamodb scan \
-      --table-name WebAuthn \
-      --endpoint-url http://localhost:8000 \
-      --region localhost
+		--table-name WebAuthn \
+		--endpoint-url http://localhost:8000 \
+		--region localhost
 
 clean:
 	docker-compose kill

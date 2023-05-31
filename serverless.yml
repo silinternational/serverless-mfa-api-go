@@ -18,12 +18,17 @@ provider:
     WEBAUTHN_TABLE: ${env:WEBAUTHN_TABLE, "webauthn"}
 
   stackTags:
-    app: ${self:service}
-    app_name: ${self:service}
-    app_env: ${sls:stage}
+    itse_app_name: ${self:service}
+    itse_app_env: ${self:custom.${sls:stage}_env}
+    itse_app_customer: shared
+    managed_by: serverless
 
   iam:
     role: ${env:LAMBDA_ROLE}
+
+custom:
+  dev_env: staging
+  prod_env: production
 
 package:
   patterns:

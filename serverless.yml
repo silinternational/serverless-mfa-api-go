@@ -28,7 +28,7 @@ provider:
 
 custom:
   dev_env: staging
-  prod_env: production
+  production_env: production
 
 package:
   patterns:

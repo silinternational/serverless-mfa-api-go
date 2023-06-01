@@ -40,4 +40,5 @@ fi
 serverless --version
 
 echo "Deploying stage $STAGE of serverless package..."
-serverless deploy --verbose --stage "$STAGE"
+serverless deploy --verbose --stage "$STAGE" --region us-east-1
+serverless deploy --verbose --stage "$STAGE" --region us-west-2

@@ -7,7 +7,7 @@
         "logs:CreateLogGroup"
       ],
       "Resource": [
-        "arn:aws:logs:${aws_region}:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*"
+        "arn:aws:logs:*:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*"
       ],
       "Effect": "Allow"
     },
@@ -16,7 +16,7 @@
         "logs:PutLogEvents"
       ],
       "Resource": [
-        "arn:aws:logs:${aws_region}:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*:*"
+        "arn:aws:logs:*:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*:*"
       ],
       "Effect": "Allow"
     },

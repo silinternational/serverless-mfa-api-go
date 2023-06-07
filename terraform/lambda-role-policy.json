@@ -34,7 +34,7 @@
         "dynamodb:Scan",
         "dynamodb:GetItem"
       ],
-      "Resource": "arn:aws:dynamodb:${aws_region}:*:table/${api_key_table}",
+      "Resource": "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}",
       "Effect": "Allow"
     },
     {
@@ -47,7 +47,7 @@
         "dynamodb:UpdateItem",
         "dynamodb:DeleteItem"
       ],
-      "Resource": "arn:aws:dynamodb:${aws_region}:*:table/${webauthn_table}",
+      "Resource": "arn:aws:dynamodb:*:${aws_account}:table/${webauthn_table}",
       "Effect": "Allow"
     }
   ]

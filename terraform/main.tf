@@ -15,7 +15,7 @@ module "serverless-user" {
 
 // Create role for lambda function
 resource "aws_iam_role" "lambdaRole" {
-  name = "${var.app_name}-${var.app_env}-${var.aws_region}-lambdaRole"
+  name = "${var.app_name}-${var.app_env}-lambdaRole"
 
   assume_role_policy = jsonencode({
     "Version" : "2012-10-17",
@@ -34,7 +34,6 @@ resource "aws_iam_role" "lambdaRole" {
 data "template_file" "lambdaRolePolicy" {
   template = file("${path.module}/lambda-role-policy.json")
   vars = {
-    aws_region     = var.aws_region
     aws_account    = var.aws_account_id
     app_name       = var.app_name
     app_env        = var.app_env

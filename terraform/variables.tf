@@ -20,8 +20,13 @@ variable "aws_account_id" {
 }
 
 variable "aws_region" {
+  description = "Primary AWS region where this lambda will be deployed"
   type        = string
-  description = "A valid AWS region where this lambda will be deployed"
+}
+
+variable "aws_region_secondary" {
+  description = "Secondary AWS region where this lambda will be deployed"
+  type        = string
 }
 
 variable "aws_secret_access_key" {

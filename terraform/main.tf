@@ -13,6 +13,20 @@ module "serverless-user" {
   extra_policies     = var.extra_policies
 }
 
+// Set up custom domain name for easier fail-over.
+module "dns_for_failover" {
+  source = "github.com/silinternational/terraform-aws-serverless-api-dns-for-failover?ref=0.2.0"
+
+  app_name             = var.app_name
+  cloudflare_zone_name = var.cloudflare_zone_name
+  serverless_stage     = var.app_env
+
+  providers = {
+    aws           = aws
+    aws.secondary = aws.secondary
+  }
+}
+
 // Create role for lambda function
 resource "aws_iam_role" "lambdaRole" {
   name = "${var.app_name}-${var.app_env}-lambdaRole"

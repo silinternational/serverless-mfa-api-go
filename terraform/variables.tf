@@ -83,6 +83,16 @@ variable "create_webauthn_table" {
   default = true
 }
 
+variable "cloudflare_token" {
+  description = "The Cloudflare limited access API token"
+  type        = string
+}
+
+variable "cloudflare_zone_name" {
+  description = "Cloudflare zone (domain) for DNS records"
+  type        = string
+}
+
 /*
  * AWS tag values
  */

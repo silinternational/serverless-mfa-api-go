@@ -18,7 +18,7 @@ module "dns_for_failover" {
   source = "github.com/silinternational/terraform-aws-serverless-api-dns-for-failover?ref=0.3.0"
 
   api_name             = "${var.app_name}-${var.app_env}"
-  cloudflare_zone_name = var.cloudflare_zone_name
+  cloudflare_zone_name = var.cloudflare_domain
   serverless_stage     = var.app_env
   subdomain            = var.app_name
 

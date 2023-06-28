@@ -7,7 +7,7 @@
         "logs:CreateLogGroup"
       ],
       "Resource": [
-        "arn:aws:logs:${aws_region}:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*"
+        "arn:aws:logs:*:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*"
       ],
       "Effect": "Allow"
     },
@@ -16,7 +16,7 @@
         "logs:PutLogEvents"
       ],
       "Resource": [
-        "arn:aws:logs:${aws_region}:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*:*"
+        "arn:aws:logs:*:${aws_account}:log-group:/aws/lambda/${app_name}-${app_env}*:*:*"
       ],
       "Effect": "Allow"
     },
@@ -34,7 +34,10 @@
         "dynamodb:Scan",
         "dynamodb:GetItem"
       ],
-      "Resource": "arn:aws:dynamodb:${aws_region}:*:table/${api_key_table}",
+      "Resource": [
+        "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}",
+        "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}_global"
+      ],
       "Effect": "Allow"
     },
     {
@@ -47,7 +50,10 @@
         "dynamodb:UpdateItem",
         "dynamodb:DeleteItem"
       ],
-      "Resource": "arn:aws:dynamodb:${aws_region}:*:table/${webauthn_table}",
+      "Resource": [
+        "arn:aws:dynamodb:*:${aws_account}:table/${webauthn_table}",
+        "arn:aws:dynamodb:*:${aws_account}:table/${webauthn_table}_global"
+      ],
       "Effect": "Allow"
     }
   ]

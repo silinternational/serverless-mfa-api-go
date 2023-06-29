@@ -1,3 +1,8 @@
+locals {
+  stage_for_api_name = var.app_env == "dev" ? var.app_env : var.app_environment
+  api_name           = "${var.app_name}-${local.stage_for_api_name}"
+}
+
 /*
  * Module docs: https://registry.terraform.io/modules/silinternational/serverless-user/aws/latest
  * Create IAM user with permissions to create lambda function, API gateway, etc.
@@ -17,7 +22,7 @@ module "serverless-user" {
 module "dns_for_failover" {
   source = "github.com/silinternational/terraform-aws-serverless-api-dns-for-failover?ref=0.3.0"
 
-  api_name             = "${var.app_name}-${var.app_env}"
+  api_name             = local.api_name
   cloudflare_zone_name = var.cloudflare_domain
   serverless_stage     = var.app_env
   subdomain            = var.app_name

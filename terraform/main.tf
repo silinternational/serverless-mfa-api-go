@@ -1,6 +1,6 @@
 locals {
-  stage_for_api_name = var.app_env == "dev" ? var.app_env : var.app_environment
-  api_name           = "${var.app_name}-${local.stage_for_api_name}"
+  stage_for_api = var.app_env == "dev" ? var.app_env : var.app_environment
+  api_name      = "${var.app_name}-${local.stage_for_api}"
 }
 
 /*
@@ -24,7 +24,7 @@ module "dns_for_failover" {
 
   api_name             = local.api_name
   cloudflare_zone_name = var.cloudflare_domain
-  serverless_stage     = var.app_env
+  serverless_stage     = local.stage_for_api
   subdomain            = var.app_name
 
   providers = {

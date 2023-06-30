@@ -20,7 +20,7 @@ module "serverless-user" {
 
 // Set up custom domain name for easier fail-over.
 module "dns_for_failover" {
-  source = "github.com/silinternational/terraform-aws-serverless-api-dns-for-failover?ref=0.3.0"
+  source = "github.com/silinternational/terraform-aws-serverless-api-dns-for-failover?ref=develop"
 
   api_name             = local.api_name
   cloudflare_zone_name = var.cloudflare_domain

@@ -15,15 +15,15 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/require"
 
 	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
 )
 
-// These come from https://github.com/duo-labs/webauthn/blob/23776d77aa561cf1d5cf9f10a65daab336a1d399/protocol/assertion_test.go
+// These come from https://github.com/go-webauthn/webauthn/blob/23776d77aa561cf1d5cf9f10a65daab336a1d399/protocol/assertion_test.go
 const (
 	testAssertID                = "AI7D5q2P0LS-Fal9ZT7CHM2N5BLbUunF92T8b6iYC199bO2kagSuU05-5dZGqb1SP0A0lyTWng"
 	testAssertAuthenticatorData = "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvBFXJJiGa3OAAI1vMYKZIsLJfHwVQMANwCOw-atj9C0vhWpfWU-whzNjeQS21Lpxfdk_G-omAtffWztpGoErlNOfuXWRqm9Uj9ANJck1p6lAQIDJiABIVggKAhfsdHcBIc0KPgAcRyAIK_-Vi-nCXHkRHPNaCMBZ-4iWCBxB8fGYQSBONi9uvq0gv95dGWlhJrBwCsj_a4LJQKVHQ"
@@ -52,7 +52,6 @@ func getTestAssertionResponse(credID, authData, clientData, attestationObject st
 }
 
 func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 string, user *DynamoUser) *http.Request {
-
 	assertResp := getTestAssertionResponse(credID1, authData1, clientData1, attestObject1)
 
 	body := ioutil.NopCloser(bytes.NewReader(assertResp))
@@ -629,7 +628,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 
 	signature1 := GenerateAuthenticationSig(authDataBytes1, cdBytes, privateKey1)
 
-	var assertionResponse1 = `{
+	assertionResponse1 := `{
 		  "id":"` + credIDEncoded1 + `",
 		  "rawId":"` + credIDEncoded1 + `",
 		  "type":"public-key",
@@ -651,7 +650,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 
 	signature2 := GenerateAuthenticationSig(authDataBytes2, cdBytes, privateKey1)
 
-	var assertionResponse2 = `{
+	assertionResponse2 := `{
 		  "id":"` + credIDEncoded2 + `",
 		  "rawId":"` + credIDEncoded2 + `",
 		  "type":"public-key",
@@ -768,7 +767,6 @@ func Test_GetPublicKeyAsBytes(t *testing.T) {
 	want := []byte{4, 6, 214, 26, 66, 24, 173, 50, 249, 174, 188, 167, 158, 81, 153, 174, 135, 222, 147, 153, 116, 209, 27, 16, 127, 233, 183, 236, 149, 105, 147, 84, 94, 138, 214, 31, 142, 253, 63, 17, 232, 200, 228, 33, 96, 172, 95, 227, 235, 203, 196, 73, 134, 227, 177, 108, 60, 40, 190, 118, 9, 6, 237, 18, 103}
 
 	assert.Equal(want, got, "incorrect public Key")
-
 }
 
 func Router() *mux.Router {
@@ -802,7 +800,6 @@ func testAuthnMiddleware(next http.Handler) http.Handler {
 }
 
 func (ms *MfaSuite) Test_DeleteCredential() {
-
 	baseConfigs := getDBConfig(ms)
 
 	users := getTestWebauthnUsers(ms, baseConfigs)
@@ -876,7 +873,6 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 	}
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
-
 			request, _ := http.NewRequest("DELETE", fmt.Sprintf("/webauthn/credential/%s", tt.credID), nil)
 
 			request.Header.Set("x-mfa-apikey", tt.user.ApiKeyValue)

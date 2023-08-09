@@ -10,12 +10,12 @@ import (
 	"log"
 	"net/http"
 
-	cbor "github.com/fxamacker/cbor/v2"
+	"github.com/fxamacker/cbor/v2"
 	"github.com/pkg/errors"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 const (
@@ -133,12 +133,10 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	return u.encryptAndStoreCredentials()
 }
 
-// DeleteCredential expects a hashed-encoded credential id.
-//  It finds a matching credential for that user and saves the user
-//    without that credential included.
-//  Alternatively, if the given credential id indicates that a legacy U2F key should be removed
-//	 (e.g. by matching the string "u2f")
-//    then that user is saved with all of its legacy u2f fields blanked out.
+// DeleteCredential expects a hashed-encoded credential id. It finds a matching credential for that user and saves the
+// user without that credential included. Alternatively, if the given credential id indicates that a legacy U2F key
+// should be removed (e.g. by matching the string "u2f") then that user is saved with all of its legacy u2f fields
+// blanked out.
 func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
 	// load to be sure working with the latest data
 	err := u.Load()
@@ -371,7 +369,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	}
 
 	// there is an issue with URLEncodeBase64.UnmarshalJSON and null values
-	// see https://github.com/duo-labs/webauthn/issues/69
+	// see https://github.com/go-webauthn/webauthn/issues/69
 	// null byte sequence is []byte{158,233,101}
 	if isNullByteSlice(parsedResponse.Response.UserHandle) {
 		parsedResponse.Response.UserHandle = nil

@@ -3,7 +3,7 @@ package mfa
 import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/dynamodb"
-	"github.com/duo-labs/webauthn/webauthn"
+	"github.com/go-webauthn/webauthn/webauthn"
 )
 
 type baseTestConfig struct {
@@ -14,7 +14,6 @@ type baseTestConfig struct {
 }
 
 func getDBConfig(ms *MfaSuite) baseTestConfig {
-
 	awsConfig := testAwsConfig()
 	envCfg := testEnvConfig(awsConfig)
 	localStorage, err := NewStorage(&awsConfig)

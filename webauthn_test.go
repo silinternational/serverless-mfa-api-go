@@ -35,7 +35,7 @@ const (
 	testRpId                    = "dKbqkhPJnC90siSSsyDPQCYqlMGpUKA5fyklC2CEHvA"
 
 	AssertionTypeFido = "fido-u2f"
-	testRpOrigin      = "localhost"
+	testRpOrigin      = "https://example.com"
 )
 
 func getTestAssertionResponse(credID, authData, clientData, attestationObject string) []byte {
@@ -137,6 +137,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 		RPDisplayName: "TestRPName",   // Display Name for your site
 		RPID:          "111.11.11.11", // Generally the FQDN for your site
 		Debug:         true,
+		RPOrigins:     []string{testRpOrigin},
 	})
 
 	ms.NoError(err, "failed creating new webAuthnClient for test")
@@ -428,6 +429,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 		RPDisplayName: "TestRPName",   // Display Name for your site
 		RPID:          "111.11.11.11", // Generally the FQDN for your site
 		Debug:         true,
+		RPOrigins:     []string{testRpOrigin},
 	})
 
 	ms.NoError(err, "failed creating new webAuthnClient for test")

@@ -23,6 +23,7 @@ func getDBConfig(ms *MfaSuite) baseTestConfig {
 		RPDisplayName: "TestRPName",   // Display Name for your site
 		RPID:          "111.11.11.11", // Generally the FQDN for your site
 		Debug:         true,
+		RPOrigins:     []string{testRpOrigin},
 	})
 
 	ms.NoError(err, "failed creating new webAuthnClient for test")

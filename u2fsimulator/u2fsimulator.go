@@ -16,9 +16,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/duo-labs/webauthn/protocol"
-	"github.com/duo-labs/webauthn/protocol/webauthncbor"
-	"github.com/duo-labs/webauthn/protocol/webauthncose"
+	"github.com/go-webauthn/webauthn/protocol"
+	"github.com/go-webauthn/webauthn/protocol/webauthncbor"
+	"github.com/go-webauthn/webauthn/protocol/webauthncose"
 )
 
 const (
@@ -120,7 +120,7 @@ func getPrivateKey() *ecdsa.PrivateKey {
 }
 
 // GetAuthDataAndPrivateKey return the authentication data as a string and as a byte slice
-//   and also returns the private key
+// and also returns the private key
 func GetAuthDataAndPrivateKey(rpID, keyHandle string) (authDataStr string, authData []byte, privateKey *ecdsa.PrivateKey) {
 	// Add in the RP ID Hash (32 bytes)
 	RPIDHash := sha256.Sum256([]byte(rpID))
@@ -197,7 +197,6 @@ func getCertBytes(privateKey *ecdsa.PrivateKey, serialNumber *big.Int, certReade
 // GetASN1Signature signs a hash (which should be the result of hashing a larger message)
 // using the private key.
 func GetASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256Digest []byte) (DsaSignature, []byte) {
-
 	r, s, err := ecdsa.Sign(notRandom, privateKey, sha256Digest[:])
 	if err != nil {
 		panic("error generating signature: " + err.Error())
@@ -214,11 +213,9 @@ func GetASN1Signature(notRandom io.Reader, privateKey *ecdsa.PrivateKey, sha256D
 }
 
 // getSignatureForAttObject starts with byte(0) and appends the sha256 sum of the rpOrigin and of the clientData
-//  and then appends the keyHandle and an elliptic Marshalled version of the public key
-//  It does a sha256 sum of that and creates a dsa signature of it with the private key and without using any
-//  randomizing
+// and then appends the keyHandle and an elliptic Marshalled version of the public key. It does a sha256 sum of
+// that and creates a dsa signature of it with the private key and without using any randomizing.
 func getSignatureForAttObject(notRandom io.Reader, clientData []byte, keyHandle string, privateKey *ecdsa.PrivateKey, rpOrigin string) []byte {
-
 	appParam := sha256.Sum256([]byte(rpOrigin))
 	challenge := sha256.Sum256(clientData)
 
@@ -284,17 +281,22 @@ type U2fRegistrationResponse struct {
 }
 
 // U2fRegistration is intended to assist with automated testing by
-//   returning to an api server something similar to what a client
-//   would return following a registration ceremony with a U2F key
+// returning to an api server something similar to what a client
+// would return following a registration ceremony with a U2F key
+//
 // It expects a POST call with the following elements in the body/form
+//
 //	"challenge"
 //	"keyHandle" (optional)
-//   (Although the api server wouldn't normally deal with a challenge and keyHandle,
-//    including them here allows for more predictability with the test results.)
+//
+// (Although the api server wouldn't normally deal with a challenge and keyHandle,
+// including them here allows for more predictability with the test results.)
+//
 // It also expects the following headers to be set on the request
+//
 //	"x-mfa-RPID"
-//  "x-mfa-RPOrigin"
-//  "x-mfa-UserUUID"
+//	"x-mfa-RPOrigin"
+//	"x-mfa-UserUUID"
 func U2fRegistration(w http.ResponseWriter, r *http.Request) {
 	reqBody, err := io.ReadAll(r.Body)
 	if err != nil {

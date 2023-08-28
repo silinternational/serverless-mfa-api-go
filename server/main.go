@@ -13,9 +13,7 @@ import (
 	mfa "github.com/silinternational/serverless-mfa-api-go"
 )
 
-var (
-	envConfig mfa.EnvConfig
-)
+var envConfig mfa.EnvConfig
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -31,7 +29,7 @@ func main() {
 	// ListenAndServe starts an HTTP server with a given address and
 	// handler defined in NewRouter.
 	log.Println("Starting service on port 8080")
-	router := newRouter([]mux.MiddlewareFunc{corsMiddleware})
+	router := newRouter()
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -88,14 +86,9 @@ var routes = []route{
 }
 
 // newRouter forms a new mux router, see https://github.com/gorilla/mux.
-func newRouter(mws []mux.MiddlewareFunc) *mux.Router {
+func newRouter() *mux.Router {
 	// Create a basic router.
 	router := mux.NewRouter().StrictSlash(true)
-
-	// attach any extra middleware
-	for _, mw := range mws {
-		router.Use(mw)
-	}
 
 	// authenticate request based on api key and secret in headers
 	// also adds user to context

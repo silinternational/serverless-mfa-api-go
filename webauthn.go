@@ -121,7 +121,8 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := map[string]string{
-		"credentialId": string(credential.ID),
+		"credentialId":    string(credential.ID),
+		"key_handle_hash": hashAndEncodeKeyHandle(credential.ID),
 	}
 
 	jsonResponse(w, resp, http.StatusOK)

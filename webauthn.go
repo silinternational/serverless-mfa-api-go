@@ -42,6 +42,11 @@ type finishRegistrationResponse struct {
 	KeyHandleHash string `json:"key_handle_hash"`
 }
 
+type finishLoginResponse struct {
+	CredentialID  string `json:"credentialId"` // DEPRECATED, use KeyHandleHash instead
+	KeyHandleHash string `json:"key_handle_hash"`
+}
+
 func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -120,8 +125,9 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resp := map[string]string{
-		"credentialId": string(credential.ID),
+	resp := finishLoginResponse{
+		CredentialID:  string(credential.ID),
+		KeyHandleHash: hashAndEncodeKeyHandle(credential.ID),
 	}
 
 	jsonResponse(w, resp, http.StatusOK)

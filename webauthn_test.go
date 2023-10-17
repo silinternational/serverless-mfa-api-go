@@ -583,9 +583,11 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	// Give user two different credentials to see them come through
 	const credID1 = "11345678-1234-1234-1234-123456789012"
 	credIDEncoded1 := base64.StdEncoding.EncodeToString([]byte(credID1))
+	khh1 := hashAndEncodeKeyHandle([]byte(credID1))
 
 	const credID2 = "22345678-1234-1234-1234-123456789012"
 	credIDEncoded2 := base64.StdEncoding.EncodeToString([]byte(credID2))
+	khh2 := hashAndEncodeKeyHandle([]byte(credID2))
 
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
@@ -688,6 +690,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 			httpReq: reqWithBody1,
 			wantBodyContains: []string{
 				`"credentialId":"` + credID1 + `"`,
+				`"key_handle_hash":"` + khh1 + `"`,
 			},
 		},
 		{
@@ -695,6 +698,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 			httpReq: reqWithBody2,
 			wantBodyContains: []string{
 				`"credentialId":"` + credID2 + `"`,
+				`"key_handle_hash":"` + khh2 + `"`,
 			},
 		},
 	}

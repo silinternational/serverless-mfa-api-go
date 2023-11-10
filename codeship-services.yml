@@ -27,12 +27,3 @@ dynamo:
     AWS_SECRET_ACCESS_KEY: abc123
     AWS_DEFAULT_REGION: us-east-1
   command: "-jar DynamoDBLocal.jar -sharedDb"
-
-ga4tracker:
-  image: silintl/ga-event-tracker:1.0.2
-  encrypted_env_file: aws.env.encrypted
-  environment:
-    GA_MEASUREMENT_ID: G-NY4R8HM3Y3
-    GA_CLIENT_ID: serverless_mfa_api_go
-    # GA_EVENT_NAME is set by the codeship-steps command
-    # Add to the aws.env.encrypted file ... GA_API_SECRET

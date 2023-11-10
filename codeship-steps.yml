@@ -24,8 +24,3 @@
   tag: main
   registry: https://index.docker.io/v1/
   encrypted_dockercfg_path: dockercfg.encrypted
-
-- name: ga4track_deployment
-  service: ga4tracker
-  tag: ^(main|develop)
-  command: sh -c "export GA_EVENT_NAME=${CI_BRANCH}_serverless_mfa_api_go && ./ga-event-tracker"

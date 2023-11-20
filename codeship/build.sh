@@ -7,4 +7,4 @@ set -e
 set -x
 
 # Build the binaries
-go build -ldflags="-s -w" -o bin/webauthn ./lambda
+CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./lambda

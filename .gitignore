@@ -1,8 +1,8 @@
 # Serverless directories
 .serverless
 
-# golang output binary directory
-bin
+# Go output binary
+bootstrap
 
 # docker config file
 dockercfg

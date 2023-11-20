@@ -4,7 +4,7 @@ frameworkVersion: ^3.7
 
 provider:
   name: aws
-  runtime: go1.x
+  runtime: provided.al2
   timeout: 5 # API Gateway invoked functions are limited to 30 seconds
   versionFunctions: false
   logRetentionInDays: 14
@@ -33,11 +33,11 @@ custom:
 package:
   patterns:
     - '!./**'
-    - './bin/**'
+    - './bootstrap'
 
 functions:
   webauthn:
-    handler: bin/webauthn
+    handler: bootstrap
     events:
       - http:
           path: '{webauthn+}'

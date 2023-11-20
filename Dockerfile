@@ -1,6 +1,6 @@
-FROM golang:1.18
+FROM golang:1.21
 
-RUN curl -o- -L https://slss.io/install | VERSION=3.7.5 bash && \
+RUN curl -o- -L https://slss.io/install | VERSION=3.36.0 bash && \
   mv $HOME/.serverless/bin/serverless /usr/local/bin && \
   ln -s /usr/local/bin/serverless /usr/local/bin/sls
 

@@ -53,3 +53,13 @@ services:
     volumes:
       - .:/src
     command: ["bash"]
+
+  swagger:
+    build:
+      context: ./application
+      dockerfile: Dockerfile-api-docs
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./application/:/app
+    working_dir: /app

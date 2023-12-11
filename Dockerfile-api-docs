@@ -1,0 +1,17 @@
+FROM quay.io/goswagger/swagger:v0.30.0
+
+# install redoc-cli to bundle html
+RUN apk add --no-cache --no-progress npm
+RUN npm install --no-progress -g redoc-cli
+
+# install aws cli to push docs to s3
+RUN apk add --no-cache --no-progress python3 py3-pip
+RUN pip install --progress-bar off awscli
+
+WORKDIR /src
+ADD . .
+
+# generate swagger.json
+RUN swagger generate spec -m -o /src/swagger.json
+
+CMD ["redoc-cli bundle --cdn --title "Serverless MFA API Documentation" --output api-docs.html /src/swagger.json"]

@@ -33,7 +33,7 @@ then
   export WEBAUTHN_TABLE="${PRD_WEBAUTHN_TABLE}"
 else
     echo "deployments only happen from develop and main branches (branch: ${GITHUB_REF_NAME})"
-    exit
+    exit 1
 fi
 
 # Print the Serverless version in the logs

@@ -1,0 +1,62 @@
+name: Test and Publish
+
+on:
+  push:
+
+jobs:
+  tests:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Test
+        run: docker-compose -f actions-services.yml run --rm test ./test.sh
+
+  deploy:
+    name: Tests
+    needs: tests
+    runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STG_AWS_ACCESS_KEY_ID: ${{ vars.STG_AWS_ACCESS_KEY_ID }}
+      STG_AWS_SECRET_ACCESS_KEY: ${{ secrets.STG_AWS_SECRET_ACCESS_KEY }}
+      STG_LAMBDA_ROLE: ${{ vars.STG_LAMBDA_ROLE }}
+      STG_API_KEY_TABLE: ${{ vars.STG_API_KEY_TABLE }}
+      STG_WEBAUTHN_TABLE: ${{ vars.STG_WEBAUTHN_TABLE }}
+      PRD_AWS_ACCESS_KEY_ID: ${{ vars.PRD_AWS_ACCESS_KEY_ID }}
+      PRD_AWS_SECRET_ACCESS_KEY: ${{ secrets.PRD_AWS_SECRET_ACCESS_KEY }}
+      PRD_LAMBDA_ROLE: ${{ vars.PRD_LAMBDA_ROLE }}
+      PRD_API_KEY_TABLE: ${{ vars.PRD_API_KEY_TABLE }}
+      PRD_WEBAUTHN_TABLE: ${{ vars.PRD_WEBAUTHN_TABLE }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Test
+        run: docker-compose -f actions-services.yml run --rm app ./deploy.sh
+
+  build-and-publish:
+    name: Build and Publish
+    needs: tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Extract metadata (tags, labels) for Docker
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}

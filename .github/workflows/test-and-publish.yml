@@ -7,6 +7,12 @@ jobs:
   tests:
     name: Tests
     runs-on: ubuntu-latest
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      STG_AWS_ACCESS_KEY_ID: ${{ vars.STG_AWS_ACCESS_KEY_ID }}
+      STG_AWS_SECRET_ACCESS_KEY: ${{ secrets.STG_AWS_SECRET_ACCESS_KEY }}
+      PRD_AWS_ACCESS_KEY_ID: ${{ vars.PRD_AWS_ACCESS_KEY_ID }}
+      PRD_AWS_SECRET_ACCESS_KEY: ${{ secrets.PRD_AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -21,7 +21,7 @@ then
   export LAMBDA_ROLE="${STG_LAMBDA_ROLE}"
   export API_KEY_TABLE="${STG_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${STG_WEBAUTHN_TABLE}"
-elif [ "${CI_BRANCH}" == "main" ];
+elif [ "${GITHUB_REF}" == "main" ];
 then
   STAGE="production"
   export AWS_ACCESS_KEY_ID="${PRD_AWS_ACCESS_KEY_ID}"
@@ -32,7 +32,7 @@ then
   export API_KEY_TABLE="${PRD_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${PRD_WEBAUTHN_TABLE}"
 else
-    echo "deployments only happen from develop and main branches (branch: ${CI_BRANCH})"
+    echo "deployments only happen from develop and main branches (branch: ${GITHUB_REF})"
     exit
 fi
 

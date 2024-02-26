@@ -39,7 +39,7 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-      - name: Test
+      - name: Deploy
         run: docker-compose -f actions-services.yml run --rm app ./scripts/deploy.sh
 
   build-and-publish:

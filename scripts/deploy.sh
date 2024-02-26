@@ -11,7 +11,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 "$DIR"/build.sh
 
 # export appropriate env vars
-if [ "${GITHUB_REF}" == "develop" ];
+if [ "${GITHUB_REF_NAME}" == "develop" ];
 then
   STAGE="dev"
   export AWS_ACCESS_KEY_ID="${STG_AWS_ACCESS_KEY_ID}"
@@ -21,7 +21,7 @@ then
   export LAMBDA_ROLE="${STG_LAMBDA_ROLE}"
   export API_KEY_TABLE="${STG_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${STG_WEBAUTHN_TABLE}"
-elif [ "${GITHUB_REF}" == "main" ];
+elif [ "${GITHUB_REF_NAME}" == "main" ];
 then
   STAGE="production"
   export AWS_ACCESS_KEY_ID="${PRD_AWS_ACCESS_KEY_ID}"
@@ -32,7 +32,7 @@ then
   export API_KEY_TABLE="${PRD_API_KEY_TABLE}"
   export WEBAUTHN_TABLE="${PRD_WEBAUTHN_TABLE}"
 else
-    echo "deployments only happen from develop and main branches (branch: ${GITHUB_REF})"
+    echo "deployments only happen from develop and main branches (branch: ${GITHUB_REF_NAME})"
     exit
 fi
 

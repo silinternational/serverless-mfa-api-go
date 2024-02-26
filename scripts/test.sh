@@ -7,7 +7,7 @@ set -e
 set -x
 
 # export appropriate AWS credentials for `serverless info`
-if [ "${GITHUB_REF}" == "main" ];
+if [ "${GITHUB_REF_NAME}" == "main" ];
 then
   STAGE="production"
   export AWS_ACCESS_KEY_ID="${PRD_AWS_ACCESS_KEY_ID}"

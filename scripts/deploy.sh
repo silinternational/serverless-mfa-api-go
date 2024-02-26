@@ -11,7 +11,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 "$DIR"/build.sh
 
 # export appropriate env vars
-if [ "${CI_BRANCH}" == "develop" ];
+if [ "${GITHUB_REF}" == "develop" ];
 then
   STAGE="dev"
   export AWS_ACCESS_KEY_ID="${STG_AWS_ACCESS_KEY_ID}"

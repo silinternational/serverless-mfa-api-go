@@ -33,7 +33,7 @@ then
   export WEBAUTHN_TABLE="${PRD_WEBAUTHN_TABLE}"
 else
     echo "deployments only happen from develop and main branches (branch: ${CI_BRANCH})"
-    exit 1
+    exit
 fi
 
 # Print the Serverless version in the logs

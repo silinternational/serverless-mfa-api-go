@@ -1,4 +1,4 @@
-name: Test and Publish
+name: Test, Deploy, Publish
 
 on:
   push:
@@ -22,6 +22,7 @@ jobs:
   deploy:
     name: Deploy to AWS Lambda
     needs: tests
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}

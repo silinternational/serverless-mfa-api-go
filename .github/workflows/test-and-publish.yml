@@ -11,10 +11,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Test
-        run: docker-compose -f actions-services.yml run --rm test ./test.sh
+        run: docker-compose -f actions-services.yml run --rm test ./scripts/test.sh
 
   deploy:
-    name: Tests
+    name: Deploy to AWS Lambda
     needs: tests
     runs-on: ubuntu-latest
     env:
@@ -34,7 +34,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Test
-        run: docker-compose -f actions-services.yml run --rm app ./deploy.sh
+        run: docker-compose -f actions-services.yml run --rm app ./scripts/deploy.sh
 
   build-and-publish:
     name: Build and Publish

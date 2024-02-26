@@ -8,10 +8,8 @@ bootstrap
 dockercfg
 
 # credentials and other env files
-aws.env
 *.aes
-local.env
-.env
+*.env
 .cert/
 
 # dev tools metadata

@@ -1,0 +1,44 @@
+version: "3"
+
+services:
+  test:
+    build: .
+    environment:
+      AWS_ENDPOINT: dynamo:8000
+      AWS_DISABLE_SSL: "true"
+      API_KEY_TABLE: ApiKey
+      WEBAUTHN_TABLE: WebAuthn
+      LAMBDA_ROLE: placeholder
+      AWS_REGION: $AWS_REGION
+      GITHUB_REF_NAME: $GITHUB_REF_NAME
+      STG_AWS_ACCESS_KEY_ID: $STG_AWS_ACCESS_KEY_ID
+      STG_AWS_SECRET_ACCESS_KEY: $STG_AWS_SECRET_ACCESS_KEY
+      PRD_AWS_ACCESS_KEY_ID: $PRD_AWS_ACCESS_KEY_ID
+      PRD_AWS_SECRET_ACCESS_KEY: $PRD_AWS_SECRET_ACCESS_KEY
+    depends_on:
+      - dynamo
+
+  app:
+    build: .
+    working_dir: /src
+    environment:
+      AWS_REGION: $AWS_REGION
+      GITHUB_REF_NAME: $GITHUB_REF_NAME
+      STG_AWS_ACCESS_KEY_ID: $STG_AWS_ACCESS_KEY_ID
+      STG_AWS_SECRET_ACCESS_KEY: $STG_AWS_SECRET_ACCESS_KEY
+      STG_LAMBDA_ROLE: $STG_LAMBDA_ROLE
+      STG_API_KEY_TABLE: $STG_API_KEY_TABLE
+      STG_WEBAUTHN_TABLE: $STG_WEBAUTHN_TABLE
+      PRD_AWS_ACCESS_KEY_ID: $PRD_AWS_ACCESS_KEY_ID
+      PRD_AWS_SECRET_ACCESS_KEY: $PRD_AWS_SECRET_ACCESS_KEY
+      PRD_LAMBDA_ROLE: $PRD_LAMBDA_ROLE
+      PRD_API_KEY_TABLE: $PRD_API_KEY_TABLE
+      PRD_WEBAUTHN_TABLE: $PRD_WEBAUTHN_TABLE
+
+  dynamo:
+    image: amazon/dynamodb-local
+    environment:
+      AWS_ACCESS_KEY_ID: abc123
+      AWS_SECRET_ACCESS_KEY: abc123
+      AWS_DEFAULT_REGION: us-east-1
+    command: "-jar DynamoDBLocal.jar -sharedDb"

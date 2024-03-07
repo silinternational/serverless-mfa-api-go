@@ -55,7 +55,7 @@ func initDb(storage *Storage) error {
 
 	// attempt to delete tables in case already exists
 	tables := map[string]string{"WebAuthn": "uuid", "ApiKey": "value"}
-	for name, _ := range tables {
+	for name := range tables {
 		deleteTable := &dynamodb.DeleteTableInput{
 			TableName: aws.String(name),
 		}
@@ -126,7 +126,9 @@ type ClientData struct {
 }
 
 // GenerateAuthenticationSig appends the clientData to the authData and uses the privateKey's public Key to sign it
-//  via a sha256 hashing algorithm.
+//
+//	via a sha256 hashing algorithm.
+//
 // It returns the base64 encoded version of the marshaled version of the corresponding dsa signature {r:bigInt, s:bigInt}
 // It does not use any kind of randomized data in this process
 func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.PrivateKey) string {

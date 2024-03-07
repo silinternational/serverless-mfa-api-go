@@ -7,7 +7,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -731,16 +730,6 @@ func Test_GetSignatureForLogin(t *testing.T) {
 	if err != nil {
 		panic("error marshalling client data: " + err.Error())
 	}
-
-	xyStr := "4843956129390645175905258525279791420276294952604174799584408071708240463528636134250956749795798585127919587881956611106672985015071877198253568414405109"
-
-	bigXY, ok := new(big.Int).SetString(xyStr, 16)
-	if !ok {
-		panic("Failed making bigint")
-	}
-
-	xyData := []byte{4}
-	xyData = append(xyData, bigXY.Bytes()...)
 
 	keyHandle := "virtKey11"
 	_, authDataBytes1, privateKey := u2fsim.GetAuthDataAndPrivateKey(localAppID, keyHandle)

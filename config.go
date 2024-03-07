@@ -8,10 +8,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 )
 
-var (
-	storage   *Storage
-	envConfig EnvConfig
-)
+var envConfig EnvConfig
 
 // EnvConfig holds environment specific configurations and is populated on init
 type EnvConfig struct {

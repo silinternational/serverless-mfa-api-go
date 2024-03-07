@@ -8,11 +8,8 @@ import (
 
 	"github.com/gorilla/mux"
 
-	mfa "github.com/silinternational/serverless-mfa-api-go"
 	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
 )
-
-var envConfig mfa.EnvConfig
 
 func main() {
 	log.SetOutput(os.Stdout)
@@ -51,11 +48,7 @@ func newRouter() *mux.Router {
 
 	// Assign the handlers to run when endpoints are called.
 	for _, route := range routes {
-		// Create a handler function.
-		var handler http.Handler
-		handler = route.HandlerFunc
-
-		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(handler)
+		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
 	}
 
 	router.NotFoundHandler = router.NewRoute().HandlerFunc(notFound).GetHandler()

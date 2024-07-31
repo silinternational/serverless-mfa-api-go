@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Test
-        run: docker-compose -f actions-services.yml run --rm test ./scripts/test.sh
+        run: docker compose -f actions-services.yml run --rm test ./scripts/test.sh
 
   deploy:
     name: Deploy to AWS Lambda
@@ -41,7 +41,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Deploy
-        run: docker-compose -f actions-services.yml run --rm app ./scripts/deploy.sh
+        run: docker compose -f actions-services.yml run --rm app ./scripts/deploy.sh
 
   build-and-publish:
     name: Build and Publish

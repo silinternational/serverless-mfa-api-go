@@ -1,6 +1,6 @@
 FROM golang:1.18
 
-RUN curl -o- -L https://slss.io/install | VERSION=3.7.5 bash && \
+RUN curl -o- -L --proto "=https" https://slss.io/install | VERSION=3.7.5 bash && \
   mv $HOME/.serverless/bin/serverless /usr/local/bin && \
   ln -s /usr/local/bin/serverless /usr/local/bin/sls
 

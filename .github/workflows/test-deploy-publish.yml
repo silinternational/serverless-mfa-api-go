@@ -2,6 +2,10 @@ name: Test, Deploy, Publish
 
 on:
   push:
+    branches: ["**"]
+    paths-ignore:
+    - 'terraform/**'
+    - 'development/**'
 
 jobs:
   tests:

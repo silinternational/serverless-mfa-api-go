@@ -7,7 +7,7 @@ provider:
   runtime: provided.al2
   timeout: 5 # API Gateway invoked functions are limited to 30 seconds
   versionFunctions: false
-  logRetentionInDays: 14
+  logRetentionInDays: 60
   apiGateway:
     shouldStartNameWithService: true
 

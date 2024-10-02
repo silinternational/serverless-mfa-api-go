@@ -226,10 +226,9 @@ func fixEncoding(content []byte) io.Reader {
 
 func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: meta.RPDisplayName, // Display Name for your site
-		RPID:          meta.RPID,          // Generally the FQDN for your site
-		RPOrigin:      meta.RPOrigin,      // The origin URL for WebAuthn requests
-		RPIcon:        meta.RPIcon,        // Optional icon URL for your site
+		RPDisplayName: meta.RPDisplayName,      // Display Name for your site
+		RPID:          meta.RPID,               // Generally the FQDN for your site
+		RPOrigins:     []string{meta.RPOrigin}, // The origin URL for WebAuthn requests
 		Debug:         true,
 	})
 	if err != nil {

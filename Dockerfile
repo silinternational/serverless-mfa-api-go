@@ -1,4 +1,4 @@
-FROM golang:1.18
+FROM golang:1.23
 
 RUN curl -o- -L --proto "=https" https://slss.io/install | VERSION=3.7.5 bash && \
   mv $HOME/.serverless/bin/serverless /usr/local/bin && \

@@ -3,6 +3,7 @@ name: Test, Deploy, Publish
 on:
   push:
     branches: ["**"]
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
     paths-ignore:
     - 'terraform/**'
 
@@ -75,8 +76,8 @@ jobs:
             ${{ vars.IMAGE_NAME }}
             ghcr.io/${{ github.repository_owner }}/${{ vars.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major.minor}}
+            type=semver,pattern={{version}},enable=true
+            type=semver,pattern={{major.minor}},enable=true
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

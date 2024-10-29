@@ -297,6 +297,10 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 
 	credential, err := u.WebAuthnClient.CreateCredential(u, u.SessionData, parsedResponse)
 	if err != nil {
+		var protocolError *protocol.Error
+		if errors.As(err, &protocolError) {
+			return "", fmt.Errorf("unable to create credential: %v -- %s", protocolError, protocolError.DevInfo)
+		}
 		return "", fmt.Errorf("unable to create credential: %w", err)
 	}
 

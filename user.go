@@ -286,11 +286,8 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	if err != nil {
 		var protocolError *protocol.Error
 		if errors.As(err, &protocolError) {
-			fmt.Printf("body: %s\n", string(body))
-			fmt.Printf("protocolError: %+v\n", protocolError)
-			fmt.Printf("DevInfo: %s\n", protocolError.DevInfo)
-			return "", fmt.Errorf("unable to parse credential creation response body: %v -- %s", protocolError,
-				protocolError.DevInfo)
+			log.Printf("unable to parse body: %s", body)
+			log.Printf("ProtocolError: %s, DevInfo: %s", protocolError.Details, protocolError.DevInfo)
 		}
 		return "", fmt.Errorf("unable to parse credential creation response body: %w", err)
 	}
@@ -299,7 +296,7 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	if err != nil {
 		var protocolError *protocol.Error
 		if errors.As(err, &protocolError) {
-			return "", fmt.Errorf("unable to create credential: %v -- %s", protocolError, protocolError.DevInfo)
+			log.Printf("ProtocolError: %s, DevInfo: %s", protocolError.Details, protocolError.DevInfo)
 		}
 		return "", fmt.Errorf("unable to create credential: %w", err)
 	}

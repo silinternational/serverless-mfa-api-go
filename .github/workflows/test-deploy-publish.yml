@@ -28,6 +28,9 @@ jobs:
     needs: tests
     if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: [ us-east-1, us-west-2 ]
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       STG_AWS_ACCESS_KEY_ID: ${{ vars.STG_AWS_ACCESS_KEY_ID }}
@@ -45,7 +48,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Deploy
-        run: docker compose -f actions-services.yml run --rm app ./scripts/deploy.sh
+        run: docker compose -f actions-services.yml run --rm app ./scripts/deploy.sh ${{ matrix.region }}
 
   build-and-publish:
     name: Build and Publish

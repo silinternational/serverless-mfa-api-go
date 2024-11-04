@@ -39,6 +39,5 @@ fi
 # Print the Serverless version in the logs
 serverless --version
 
-echo "Deploying stage $STAGE of serverless package..."
-serverless deploy --verbose --stage "$STAGE" --region us-east-1
-serverless deploy --verbose --stage "$STAGE" --region us-west-2
+echo "Deploying stage $STAGE of serverless package to region $1..."
+serverless deploy --verbose --stage "$STAGE" --region "$1"

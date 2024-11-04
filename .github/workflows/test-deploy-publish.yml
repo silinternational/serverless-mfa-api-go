@@ -2,8 +2,8 @@ name: Test, Deploy, Publish
 
 on:
   push:
-    branches: ["**"]
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    branches: [ '**' ]
+    tags: [ 'v*' ]
     paths-ignore:
     - 'terraform/**'
 

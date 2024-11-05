@@ -2,8 +2,8 @@ name: Test, Deploy, Publish
 
 on:
   push:
-    branches: ["**"]
-    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+    branches: [ '**' ]
+    tags: [ 'v*' ]
     paths-ignore:
     - 'terraform/**'
 
@@ -26,8 +26,11 @@ jobs:
   deploy:
     name: Deploy to AWS Lambda
     needs: tests
-    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+    if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        region: [ us-east-1, us-west-2 ]
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       STG_AWS_ACCESS_KEY_ID: ${{ vars.STG_AWS_ACCESS_KEY_ID }}
@@ -45,7 +48,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Deploy
-        run: docker compose -f actions-services.yml run --rm app ./scripts/deploy.sh
+        run: docker compose -f actions-services.yml run --rm app ./scripts/deploy.sh ${{ matrix.region }}
 
   build-and-publish:
     name: Build and Publish
@@ -77,8 +80,9 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/${{ vars.IMAGE_NAME }}
           tags: |
             type=ref,event=branch
-            type=semver,pattern={{version}},enable=true
-            type=semver,pattern={{major.minor}},enable=true
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major.minor}}
+            type=semver,pattern={{major}}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5

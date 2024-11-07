@@ -349,7 +349,11 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialRequestResponseBody(br)
 	if err != nil {
-		log.Printf("failed to parse credential request response body: %s", err)
+		var protocolError *protocol.Error
+		if errors.As(err, &protocolError) {
+			log.Printf("failed to parse credential request response body: %s", body)
+			log.Printf("ProtocolError: %s, DevInfo: %s", protocolError.Details, protocolError.DevInfo)
+		}
 		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
 	}
 

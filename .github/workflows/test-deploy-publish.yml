@@ -65,8 +65,8 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.actor}}
-          password: ${{ secrets.GITHUB_TOKEN}}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
   
       - name: Extract metadata (tags, labels) for Docker
         id: meta
@@ -74,7 +74,7 @@ jobs:
         with:
           images: |
             ${{ vars.IMAGE_NAME }}
-            ghcr.io/${{ github.repository_owner }}/${{ vars.IMAGE_NAME }}
+            ghcr.io/${{ github.repository_owner }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}},enable=true
@@ -88,3 +88,4 @@ jobs:
           tags: |
             ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          provenance: false

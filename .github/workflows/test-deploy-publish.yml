@@ -44,7 +44,7 @@ jobs:
 
   deploy:
     name: Deploy to AWS Lambda
-    needs: tests
+    needs: [ 'tests', 'lint' ]
     if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
     strategy:
@@ -71,7 +71,7 @@ jobs:
 
   build-and-publish:
     name: Build and Publish
-    needs: tests
+    needs: [ 'tests', 'lint' ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

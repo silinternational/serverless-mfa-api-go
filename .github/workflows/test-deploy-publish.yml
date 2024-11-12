@@ -27,9 +27,28 @@ jobs:
       - name: Test
         run: docker compose -f actions-services.yml run --rm test ./scripts/test.sh
 
+  lint:
+    name: Lint and Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.DEFAULT_JOB_TIMEOUT_MINUTES) }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+        check-latest: true
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+    - name: govulncheck
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck ./...
+
   deploy:
     name: Deploy to AWS Lambda
-    needs: tests
+    needs: [ 'tests', 'lint' ]
     if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
     concurrency: 
@@ -59,7 +78,7 @@ jobs:
 
   build-and-publish:
     name: Build and Publish
-    needs: tests
+    needs: [ 'tests', 'lint' ]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -84,7 +103,7 @@ jobs:
         with:
           images: |
             ${{ vars.IMAGE_NAME }}
-            ghcr.io/${{ github.repository_owner }}/${{ vars.IMAGE_NAME }}
+            ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

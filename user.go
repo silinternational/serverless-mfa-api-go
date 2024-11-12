@@ -284,20 +284,13 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialCreationResponseBody(br)
 	if err != nil {
-		var protocolError *protocol.Error
-		if errors.As(err, &protocolError) {
-			log.Printf("unable to parse body: %s", body)
-			log.Printf("ProtocolError: %s, DevInfo: %s", protocolError.Details, protocolError.DevInfo)
-		}
+		logProtocolError("unable to parse body", err)
 		return "", fmt.Errorf("unable to parse credential creation response body: %w", err)
 	}
 
 	credential, err := u.WebAuthnClient.CreateCredential(u, u.SessionData, parsedResponse)
 	if err != nil {
-		var protocolError *protocol.Error
-		if errors.As(err, &protocolError) {
-			log.Printf("ProtocolError: %s, DevInfo: %s", protocolError.Details, protocolError.DevInfo)
-		}
+		logProtocolError("unable to create credential", err)
 		return "", fmt.Errorf("unable to create credential: %w", err)
 	}
 
@@ -349,7 +342,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialRequestResponseBody(br)
 	if err != nil {
-		log.Printf("failed to parse credential request response body: %s", err)
+		logProtocolError(fmt.Sprintf("failed to parse credential request response body: %s", body), err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
 	}
 
@@ -378,7 +371,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 
 	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
-		log.Printf("failed to validate login: %s", err)
+		logProtocolError("failed to validate login", err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %s", err)
 	}
 
@@ -487,4 +480,14 @@ func isNullByteSlice(slice []byte) bool {
 func hashAndEncodeKeyHandle(id []byte) string {
 	hash := sha256.Sum256(id)
 	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+// logProtocolError logs a detailed message if the given error is an Error from go-webauthn/webauthn/protocol
+func logProtocolError(msg string, err error) {
+	var protocolError *protocol.Error
+	if errors.As(err, &protocolError) {
+		log.Printf("%s, ProtocolError: %s, DevInfo: %s", msg, protocolError.Details, protocolError.DevInfo)
+	} else {
+		log.Printf("%s, Error: %s", msg, err)
+	}
 }

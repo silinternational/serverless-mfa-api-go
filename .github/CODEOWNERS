@@ -1,0 +1,4 @@
+* @silinternational/developers
+*.tf @silinternational/tf-devs
+*.go @silinternational/go-devs
+go.* @silinternational/go-devs

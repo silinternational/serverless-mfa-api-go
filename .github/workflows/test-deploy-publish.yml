@@ -7,6 +7,10 @@ on:
     paths-ignore:
     - 'terraform/**'
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   tests:
     name: Tests
@@ -47,6 +51,9 @@ jobs:
     needs: [ 'tests', 'lint' ]
     if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
+    concurrency: 
+      group: deploy-${{ github.ref }}-${{ matrix.region }}
+      cancel-in-progress: false
     strategy:
       matrix:
         region: [ us-east-1, us-west-2 ]
@@ -96,7 +103,7 @@ jobs:
         with:
           images: |
             ${{ vars.IMAGE_NAME }}
-            ghcr.io/${{ github.repository_owner }}/${{ vars.IMAGE_NAME }}
+            ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch
             type=semver,pattern={{version}}

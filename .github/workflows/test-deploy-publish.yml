@@ -23,6 +23,26 @@ jobs:
       - name: Test
         run: docker compose -f actions-services.yml run --rm test ./scripts/test.sh
 
+  lint:
+    name: Lint and Vulnerability Scan
+    runs-on: ubuntu-latest
+    timeout-minutes: ${{ fromJSON(vars.DEFAULT_JOB_TIMEOUT_MINUTES) }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: 'go.mod'
+        check-latest: true
+    - name: golangci-lint
+      uses: golangci/golangci-lint-action@v6
+      with:
+        version: latest
+        working-directory: application
+    - name: govulncheck
+      run: |
+        go install golang.org/x/vuln/cmd/govulncheck@latest
+        govulncheck -C application ./...
+
   deploy:
     name: Deploy to AWS Lambda
     needs: tests

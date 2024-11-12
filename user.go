@@ -378,14 +378,6 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	return credential, nil
 }
 
-// logProtocolError logs a message if the given error is an Error from go-webauthn/webauthn/protocol
-func logProtocolError(msg string, err error) {
-	var protocolError *protocol.Error
-	if errors.As(err, &protocolError) {
-		log.Printf("%s, ProtocolError: %s, DevInfo: %s", msg, protocolError.Details, protocolError.DevInfo)
-	}
-}
-
 // User ID according to the Relying Party
 func (u *DynamoUser) WebAuthnID() []byte {
 	return []byte(u.ID)
@@ -488,4 +480,14 @@ func isNullByteSlice(slice []byte) bool {
 func hashAndEncodeKeyHandle(id []byte) string {
 	hash := sha256.Sum256(id)
 	return base64.RawURLEncoding.EncodeToString(hash[:])
+}
+
+// logProtocolError logs a detailed message if the given error is an Error from go-webauthn/webauthn/protocol
+func logProtocolError(msg string, err error) {
+	var protocolError *protocol.Error
+	if errors.As(err, &protocolError) {
+		log.Printf("%s, ProtocolError: %s, DevInfo: %s", msg, protocolError.Details, protocolError.DevInfo)
+	} else {
+		log.Printf("%s, Error: %s", msg, err)
+	}
 }

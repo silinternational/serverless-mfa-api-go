@@ -1,0 +1,453 @@
+openapi: 3.0.0
+
+info:
+  title: MFA API
+  description: Webauthn 2sv API implemented with Go and AWS Lambda
+  version: 1.0.0
+
+servers:
+- url: 'https://api.example.org'
+
+security:
+- mfaApiKey: []
+  mfaApiSecret: []
+
+components:
+  headers:
+#    Note: OpenAPI 3.0.0 does not officially support request headers in components, but it appears to
+#    be supported by Redocly and Smartbear    
+    x-mfa-RPDisplayName:
+      in: header
+      name: x-mfa-RPDisplayName
+      description: Relying Party Display Name
+      required: true
+      schema:
+        type: string
+      example: ACME Inc
+    x-mfa-RPID:
+      in: header
+      name: x-mfa-RPID
+      description: Relying Party ID, should only be the top level domain with no subdomain, protocol, or path
+      required: true
+      schema:
+        type: string
+      example: example.com
+    x-mfa-RPOrigin:
+      in: header
+      name: x-mfa-RPOrigin
+      description: >-
+        Relying Party Origin, the browser origin for the request, include appropriate subdomain and protocol with
+        no path or port
+      schema:
+        type: string
+      example: https://sub.example.com
+    x-mfa-RPIcon:
+      in: header
+      name: x-mfa-RPIcon
+      description: Replying Party Icon
+      schema:
+        type: string
+    x-mfa-UserUUID:
+      in: header
+      name: x-mfa-UserUUID
+      description: >-
+        The UUID for the user attempting to register or authenticate with WebAuthn. This has nothing to do with 
+        WebAuthn, but is the primary key for finding the right record in the database.
+      required: true
+      schema:
+        type: string
+    x-mfa-Username:
+      in: header
+      name: x-mfa-Username
+      description: The user's username
+      required: true
+      schema:
+        type: string
+    x-mfa-UserDisplayName:
+      in: header
+      name: x-mfa-UserDisplayName
+      description: The user's display name
+      required: true
+      schema:
+        type: string
+    x-mfa-UserIcon:
+      in: header
+      name: x-mfa-UserIcon
+      description: User Icon
+      schema:
+        type: string
+
+  responses:
+    UnauthorizedError:
+      description: API key or secret is missing or invalid
+
+  securitySchemes:
+    mfaApiKey:
+      description: Authentication key assigned to an API consumer
+      type: apiKey
+      in: header
+      name: X-Mfa-Apikey
+    mfaApiSecret:
+      description: Authentication secret assigned to an API consumer
+      type: apiKey
+      in: header
+      name: X-Mfa-Apisecret
+
+  schemas:
+    BeginRegistrationResponse:
+      type: object
+      properties:
+        uuid:
+          type: string
+          description: The unique identifier for the user.
+        publicKey:
+          $ref: '#/components/schemas/PublicKeyCredentialCreationOptions'
+      required:
+      - uuid
+      - publicKey
+
+    PublicKeyCredentialCreationOptions:
+      description: >-
+        PublicKeyCredentialCreationOptions represents the IDL of the same name. In order to create a Credential via 
+        create(), the caller specifies a few parameters in a PublicKeyCredentialCreationOptions object.
+      type: object
+      properties:
+        rp:
+          $ref: '#/components/schemas/RelyingPartyEntity'
+        user:
+          $ref: '#/components/schemas/UserEntity'
+        challenge:
+          type: string
+          format: byte
+          description: URL encoded base64
+        pubKeyCredParams:
+          description: Public key credential parameters
+          type: array
+          items:
+            $ref: '#/components/schemas/CredentialParameter'
+        timeout:
+          type: integer
+        excludeCredentials:
+          $ref: '#/components/schemas/CredentialDescriptor'
+        authenticatorSelection:
+          $ref: '#/components/schemas/AuthenticatorSelection'
+        hints:
+          type: array
+          items:
+            type: string
+        attestation:
+          type: string
+        attestationFormats:
+          type: array
+          items:
+            type: string
+        extensions:
+          type: object
+          properties:
+            appidExclude:
+              type: string
+      required: [ "rp", "user", "challenge" ]
+
+    RelyingPartyEntity:
+      description: >-
+        The RelyingPartyEntity represents the PublicKeyCredentialRpEntity IDL and is used to supply additional Relying
+        Party attributes when creating a new credential.
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+      required: [ "id", "name" ]
+
+    UserEntity:
+      description: >-
+        The UserEntity represents the PublicKeyCredentialUserEntity IDL and is used to supply additional user account
+        attributes when creating a new credential.
+      type: object
+      properties:
+        id:
+          type: string
+        displayName:
+          type: string
+        name:
+          type: string
+      required: [ "id", "displayName", "name"]
+
+    CredentialAssertion:
+      description: The credential type and algorithm that the relying party wants the authenticator to create.
+      type: object
+      properties:
+        publicKey:
+          $ref: '#/components/schemas/PublicKeyCredentialRequestOptions'
+
+    CredentialParameter:
+      description: The credential type and algorithm that the relying party wants the authenticator to create.
+      type: object
+      properties:
+        type:
+          type: string
+        alg:
+          type: string
+      required: [ "type", "alg" ]
+
+    CredentialDescriptor:
+      description: >-
+        This dictionary contains the attributes that are specified by a caller when referring to a public key credential
+        as an input parameter to the create() or get() methods. It mirrors the fields of the PublicKeyCredential object
+        returned by the latter methods.
+      type: object
+      properties:
+        type:
+          description: The valid credential types
+          type: string
+        id:
+          description: The ID of a credential to allow/disallow. (URL encoded Base64)
+          type: string
+          format: byte
+        transports:
+          description: The authenticator transports that can be used.
+          type: array
+          items:
+            type: string
+      required: [ "type", "id" ]
+
+    AuthenticatorSelection:
+      description: >-
+        WebAuthn Relying Parties may use the AuthenticatorSelectionCriteria dictionary to specify their requirements 
+        regarding authenticator attributes.
+      type: object
+      properties:
+        authenticatorAttachment:
+          description: >- 
+            If this member is present, eligible authenticators are filtered to only authenticators attached with the
+            specified AuthenticatorAttachment enum.
+          type: string
+        requireResidentKey:
+          description: >-
+            This member describes the Relying Party's requirements regarding resident credentials. If the parameter is
+            set to true, the authenticator MUST create a client-side-resident public key credential source when creating
+            a public key credential.
+          type: boolean
+        residentKey:
+          description: >-
+            This member describes the Relying Party's requirements regarding resident credentials per Webauthn Level 2.
+          type: string
+        userVerification:
+          description: >-
+            This member describes the Relying Party's requirements regarding user verification for the create()
+            operation. Eligible authenticators are filtered to only those capable of satisfying this requirement.
+          type: string
+
+    PublicKeyCredentialRequestOptions:
+      description: >-
+        The PublicKeyCredentialRequestOptions dictionary supplies get() with the data it needs to generate an assertion.
+        Its challenge member MUST be present, while its other members are OPTIONAL.
+      type: object
+      properties:
+        challenge:
+          type: string
+          format: byte
+        timeout:
+          type: integer
+        rpId:
+          type: string
+        allowCredentials:
+          type: array
+          items:
+            $ref: '#/components/schemas/CredentialDescriptor'
+        userVerification:
+          type: string
+        hints:
+          type: array
+          items:
+            type: string
+        extensions:
+          type: object
+          properties:
+            appidExclude:
+              type: boolean
+
+
+    CredentialCreationResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        rawId:
+          description: (URL encoded Base64)
+          type: string
+          format: byte
+        response:
+          $ref: '#/components/schemas/AuthenticatorAttestationResponse'
+        type:
+          type: string
+        clientExtensionResults:
+          type: object
+          properties:
+            appidExclude:
+              type: boolean
+        authenticatorAttachment:
+          type: string
+      required: [ 'id', 'type', 'rawId', 'response' ]
+
+    AuthenticatorAttestationResponse:
+      description: >-
+        AuthenticatorAttestationResponse is the initial unpacked 'response' object received by the relying party.
+        This contains the clientDataJSON object, which will be marshalled into CollectedClientData, and the
+        'attestationObject', which contains information about the authenticator, and the newly minted public key
+        credential. The information in both objects are used to verify the authenticity of the ceremony and new 
+        credential.
+      type: object
+      properties:
+        clientDataJSON:
+          description: The byte slice of clientDataJSON, which becomes CollectedClientData (URL encoded Base64)
+          type: string
+          format: byte
+        transports:
+          type: array
+          items:
+            type: string
+        authenticatorData:
+          description: (URL encoded Base64)
+          type: string
+          format: byte
+        publicKey:
+          description: (URL encoded Base64)
+          type: string
+          format: byte
+        publicKeyAlgorithm:
+          type: integer
+        attestationObject:
+          description: >-
+            AttestationObject is the byte slice version of attestationObject. This attribute contains an attestation
+            object, which is opaque to, and cryptographically protected against tampering by, the client. The 
+            attestation object contains both authenticator data and an attestation statement. The former contains the 
+            AAGUID, a unique credential ID, and the credential public key. The contents of the attestation statement are
+            determined by the attestation statement format used by the authenticator. It also contains any additional 
+            information that the Relying Party's server requires to validate the attestation statement, as well as to 
+            decode and validate the authenticator data along with the JSON-serialized client data. (URL encoded Base64)
+          type: string
+          format: byte
+      required: [ 'clientDataJSON', 'authenticatorData', 'publicKey', 'publicKeyAlgorithm', 'attestationObject' ]
+
+    SimpleError:
+      type: object
+      properties:
+        error:
+          type: string
+          description: "Error message describing the error"
+      required:
+      - error
+paths:
+  /webauthn/register:
+    post:
+      summary: Begin Registration
+      description: Begin the registration of a new credential
+      parameters:
+      - $ref: '#/components/headers/x-mfa-RPDisplayName'
+      - $ref: '#/components/headers/x-mfa-RPID'
+      - $ref: '#/components/headers/x-mfa-RPOrigin'
+      - $ref: '#/components/headers/x-mfa-RPIcon'
+      - $ref: '#/components/headers/x-mfa-UserUUID'
+      - $ref: '#/components/headers/x-mfa-Username'
+      - $ref: '#/components/headers/x-mfa-UserDisplayName'
+      - $ref: '#/components/headers/x-mfa-UserIcon'
+      responses:
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                invalid-input:
+                  value:
+                    error: "unable to get user from request context"
+                registration-error:
+                  value:
+                    error: "failed to begin registration"
+        401:
+          $ref: "#/components/responses/UnauthorizedError"
+        200:
+          description: New response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BeginRegistrationResponse"
+    put:
+      summary: Finish Registration
+      description: Finish the registration of a new credential
+      parameters:
+      - $ref: '#/components/headers/x-mfa-RPDisplayName'
+      - $ref: '#/components/headers/x-mfa-RPID'
+      - $ref: '#/components/headers/x-mfa-RPOrigin'
+      - $ref: '#/components/headers/x-mfa-RPIcon'
+      - $ref: '#/components/headers/x-mfa-UserUUID'
+      - $ref: '#/components/headers/x-mfa-Username'
+      - $ref: '#/components/headers/x-mfa-UserDisplayName'
+      - $ref: '#/components/headers/x-mfa-UserIcon'
+      requestBody:
+        description: credential creation response
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CredentialCreationResponse'
+      responses:
+        200:
+          description: New response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  key_handle_hash:
+                    type: string
+                    description: hash of the key handle
+              example:
+                key_handle_hash: 0123456789abcdefghij
+        401:
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /webauthn/login:
+    post:
+      summary: Begin Login
+      responses:
+        200:
+          description: New response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CredentialAssertion'
+        401:
+          $ref: "#/components/responses/UnauthorizedError"
+
+    put:
+      summary: Finish Login
+      responses:
+        200:
+          description: New response
+          content:
+            application/json:
+              schema:
+        401:
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /webauthn/user:
+    delete:
+      summary: Delete User
+      responses:
+        204:
+          description: Success
+        401:
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /webauthn/credential/{id}:
+    delete:
+      summary: Delete Credential (not currently supported in the Lambda implementation)
+      responses:
+        204:
+          description: Success
+        401:
+          $ref: "#/components/responses/UnauthorizedError"

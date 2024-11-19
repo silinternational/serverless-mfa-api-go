@@ -20,8 +20,8 @@ to the WebAuthn library and fit the structures it was expecting without causing 
 ### Required Headers
 1. `x-mfa-apikey` - The API Key
 2. `x-mfa-apisecret` - The API Key Secret
-3. `x-mfa-RPDisplayName` - The Relay Party Display Name, ex: `ACME Inc.`
-4. `x-mfa-RPID` - The Relay Party ID, ex: `domain.com` (should only be the top level domain, no subdomain, protocol, 
+3. `x-mfa-RPDisplayName` - The Relying Party Display Name, ex: `ACME Inc.`
+4. `x-mfa-RPID` - The Relying Party ID, ex: `domain.com` (should only be the top level domain, no subdomain, protocol, 
 or path)
 5. `x-mfa-RPOrigin` - The browser Origin for the request, ex: `https://sub.domain.com` (include appropriate subdomain 
 and protocol, no path or port)
@@ -29,6 +29,11 @@ and protocol, no path or port)
 to do with WebAuthn, but is the primary key for finding the right records in DynamoDB
 7. `x-mfa-Username` - The user's username of your service
 8. `x-mfa-UserDisplayName` - The user's display name
+
+### Optional headers
+
+1. `x-mfa-Usericon` - 
+2. `x-mfa-Rpicon` -
 
 ### Begin Registration
 `POST /webauthn/register`

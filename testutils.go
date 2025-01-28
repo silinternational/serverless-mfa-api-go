@@ -6,7 +6,6 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"errors"
 	"os"
 	"strings"
 
@@ -62,13 +61,7 @@ func initDb(storage *Storage) error {
 		deleteTable := &dynamodb.DeleteTableInput{
 			TableName: aws.String(name),
 		}
-		_, err = storage.client.DeleteTable(ctx, deleteTable)
-		if err != nil {
-			var notFoundError *types.ResourceNotFoundException
-			if !errors.Is(err, notFoundError) {
-				return err
-			}
-		}
+		_, _ = storage.client.DeleteTable(ctx, deleteTable)
 	}
 
 	// create tables

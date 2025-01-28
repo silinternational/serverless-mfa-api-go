@@ -2,11 +2,11 @@ services:
   test:
     build: .
     environment:
-      AWS_ENDPOINT: dynamo:8000
+      AWS_ENDPOINT: http://dynamo:8000
       API_KEY_TABLE: ApiKey
       WEBAUTHN_TABLE: WebAuthn
       LAMBDA_ROLE: placeholder
-      AWS_REGION: $AWS_REGION
+      AWS_REGION: localhost
       GITHUB_REF_NAME: $GITHUB_REF_NAME
       STG_AWS_ACCESS_KEY_ID: $STG_AWS_ACCESS_KEY_ID
       STG_AWS_SECRET_ACCESS_KEY: $STG_AWS_SECRET_ACCESS_KEY

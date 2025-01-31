@@ -17,13 +17,13 @@ import (
 const ApiKeyTablePK = "value"
 
 type ApiKey struct {
-	Key          string   `json:"value"`
-	Secret       string   `json:"-"`
-	HashedSecret string   `json:"hashedApiSecret"`
-	Email        string   `json:"email"`
-	CreatedAt    int      `json:"createdAt"`
-	ActivatedAt  int      `json:"activatedAt"`
-	Store        *Storage `json:"-"`
+	Key          string   `dynamodbav:"value" json:"value"`
+	Secret       string   `dynamodbav:"-" json:"-"`
+	HashedSecret string   `dynamodbav:"hashedApiSecret" json:"hashedApiSecret"`
+	Email        string   `dynamodbav:"email" json:"email"`
+	CreatedAt    int      `dynamodbav:"createdAt" json:"createdAt"`
+	ActivatedAt  int      `dynamodbav:"activatedAt" json:"activatedAt"`
+	Store        *Storage `dynamodbav:"-" json:"-"`
 }
 
 func (k *ApiKey) Load() error {

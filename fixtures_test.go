@@ -1,8 +1,10 @@
 package mfa
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"context"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
@@ -16,7 +18,7 @@ type baseTestConfig struct {
 func getDBConfig(ms *MfaSuite) baseTestConfig {
 	awsConfig := testAwsConfig()
 	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(&awsConfig)
+	localStorage, err := NewStorage(awsConfig)
 	ms.NoError(err, "failed creating local storage for test")
 
 	web, err := webauthn.New(&webauthn.Config{
@@ -100,11 +102,10 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []DynamoUser {
 		TableName: aws.String(config.EnvConfig.WebauthnTable),
 	}
 
-	results, err := config.Storage.client.Scan(params)
+	ctx := context.Background()
+	results, err := config.Storage.client.Scan(ctx, params)
 	ms.NoError(err, "failed to scan storage for new user entries")
-
-	resultsStr := formatDynamoResults(results)
-	ms.Contains(resultsStr, "Count: 3", "initial data wasn't saved properly")
+	ms.Equal(int32(3), results.Count, "Count:3", "initial data wasn't saved properly")
 
 	return []DynamoUser{testUser0, testUser1, testUser2}
 }

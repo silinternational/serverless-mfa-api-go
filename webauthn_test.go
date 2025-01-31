@@ -13,8 +13,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gorilla/mux"
@@ -110,18 +111,10 @@ func Test_Parse(t *testing.T) {
 	assert.Equal(want, pccr.ID, "incorrect RawID")
 }
 
-func formatDynamoResults(results interface{}) string {
-	resultsStr := fmt.Sprintf("%+v", results)
-	resultsStr = strings.Replace(resultsStr, "  ", "", -1)
-	resultsStr = strings.Replace(resultsStr, "\n", "", -1)
-
-	return resultsStr
-}
-
 func (ms *MfaSuite) Test_BeginRegistration() {
 	awsConfig := testAwsConfig()
 	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(&awsConfig)
+	localStorage, err := NewStorage(awsConfig)
 	ms.NoError(err, "failed creating local storage for test")
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
@@ -175,11 +168,11 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	localStorage.Store(envConfig.WebauthnTable, ctxWithUserID)
 
 	tests := []struct {
-		name               string
-		httpWriter         *lambdaResponseWriter
-		httpReq            http.Request
-		wantBodyContains   []string
-		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
+		name             string
+		httpWriter       *lambdaResponseWriter
+		httpReq          http.Request
+		wantBodyContains []string
+		verifyFn         func(results *dynamodb.ScanOutput)
 	}{
 		{
 			name:       "no user",
@@ -191,7 +184,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			},
 		},
 		{
-			name:       "user has no id",
+			name:       "user has no id, uuid will be generated",
 			httpWriter: newLambdaResponseWriter(),
 			httpReq:    reqNoID,
 			wantBodyContains: []string{
@@ -200,14 +193,15 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 				`"name":"TestRPName"`,
 				`"publicKey":{`,
 			},
-			wantDynamoContains: []string{
-				`{Count: 1`,
-				`EncryptedSessionData: {B: <binary> len`,
-				`apiKey: {S: "` + apiKeyKey,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				ms.Equal(int32(1), results.Count)
+				_, isB := results.Items[0]["EncryptedSessionData"].(*types.AttributeValueMemberB)
+				ms.True(isB)
+				ms.Equal(apiKeyKey, results.Items[0]["apiKey"].(*types.AttributeValueMemberS).Value)
 			},
 		},
 		{
-			name:       "user has an id",
+			name:       "user has an id, uuid will be as given",
 			httpWriter: newLambdaResponseWriter(),
 			httpReq:    reqWithUserID,
 			wantBodyContains: []string{
@@ -217,11 +211,16 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 				`"publicKey":{`,
 				`"id":"` + string(userIDEncoded),
 			},
-			wantDynamoContains: []string{
-				`{Count: 2`,
-				`uuid: {S: "` + userID,
-				`EncryptedSessionData: {B: <binary> len`,
-				`apiKey: {S: "` + apiKeyKey,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				ms.Equal(int32(2), results.Count)
+				ms.Equal(apiKeyKey, results.Items[0]["apiKey"].(*types.AttributeValueMemberS).Value)
+				ms.Equal(apiKeyKey, results.Items[1]["apiKey"].(*types.AttributeValueMemberS).Value)
+
+				uuid0 := results.Items[0]["uuid"].(*types.AttributeValueMemberS).Value
+				uuid1 := results.Items[1]["uuid"].(*types.AttributeValueMemberS).Value
+				if uuid0 != userID {
+					ms.Equal(userID, uuid1)
+				}
 			},
 		},
 	}
@@ -234,7 +233,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 				ms.Contains(gotBody, w)
 			}
 
-			if len(tt.wantDynamoContains) == 0 {
+			if tt.verifyFn == nil {
 				return
 			}
 
@@ -242,15 +241,11 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 				TableName: aws.String(envCfg.WebauthnTable),
 			}
 
-			results, err := localStorage.client.Scan(params)
+			ctx := context.Background()
+			results, err := localStorage.client.Scan(ctx, params)
 			ms.NoError(err, "failed to scan storage for results")
 
-			// remove extra spaces and line endings
-			resultsStr := formatDynamoResults(results)
-
-			for _, w := range tt.wantDynamoContains {
-				ms.Contains(resultsStr, w)
-			}
+			tt.verifyFn(results)
 		})
 	}
 }
@@ -258,7 +253,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 func (ms *MfaSuite) Test_FinishRegistration() {
 	awsConfig := testAwsConfig()
 	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(&awsConfig)
+	localStorage, err := NewStorage(awsConfig)
 	ms.NoError(err, "failed creating local storage for test")
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
@@ -318,11 +313,11 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	localStorage.Store(envConfig.WebauthnTable, &testUser)
 
 	tests := []struct {
-		name               string
-		httpReq            http.Request
-		wantBodyContains   []string
-		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
-		wantCredsCount     int
+		name             string
+		httpReq          http.Request
+		wantBodyContains []string
+		wantCredsCount   int
+		verifyFn         func(results *dynamodb.ScanOutput)
 	}{
 		{
 			name:             "no user",
@@ -342,11 +337,12 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 			wantBodyContains: []string{
 				`{"key_handle_hash":"ZYDzzEkj-JY80I7IviiMswRyYvTEh5DDXlhssMFs6Kw"}`,
 			},
-			wantDynamoContains: []string{
-				`{Count: 1`,
-				`uuid: {S: "` + userID,
-				`EncryptedCredentials: {B: <binary>`,
-				`apiKey: {S: "` + apiKeyKey,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				ms.Equal(int32(1), results.Count)
+				ms.Equal(userID, results.Items[0]["uuid"].(*types.AttributeValueMemberS).Value)
+				_, isB := results.Items[0]["EncryptedCredentials"].(*types.AttributeValueMemberB)
+				ms.True(isB)
+				ms.Equal(apiKeyKey, results.Items[0]["apiKey"].(*types.AttributeValueMemberS).Value)
 			},
 			wantCredsCount: 1,
 		},
@@ -356,11 +352,12 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 			wantBodyContains: []string{
 				`{"key_handle_hash":"ANyGhfjNgKwiap6UuhmYlZr_dao7x8SRFwU_IR7j2Pc"}`,
 			},
-			wantDynamoContains: []string{
-				`{Count: 1`, // Still only one user, but now with 2 credentials
-				`uuid: {S: "` + userID,
-				`EncryptedCredentials: {B: <binary>`,
-				`apiKey: {S: "` + apiKeyKey,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				ms.Equal(int32(1), results.Count) // Still only one user, but now with 2 credentials
+				ms.Equal(userID, results.Items[0]["uuid"].(*types.AttributeValueMemberS).Value)
+				_, isB := results.Items[0]["EncryptedCredentials"].(*types.AttributeValueMemberB)
+				ms.True(isB)
+				ms.Equal(apiKeyKey, results.Items[0]["apiKey"].(*types.AttributeValueMemberS).Value)
 			},
 			wantCredsCount: 2,
 		},
@@ -375,7 +372,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 				ms.Contains(gotBody, w)
 			}
 
-			if len(tt.wantDynamoContains) == 0 {
+			if tt.verifyFn == nil {
 				return
 			}
 
@@ -383,21 +380,21 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 				TableName: aws.String(envCfg.WebauthnTable),
 			}
 
-			results, err := localStorage.client.Scan(params)
+			ctx := context.Background()
+			results, err := localStorage.client.Scan(ctx, params)
 			ms.NoError(err, "failed to scan storage for results")
 
-			// remove extra spaces and line endings
-			resultsStr := formatDynamoResults(results)
+			tt.verifyFn(results)
 
-			for _, w := range tt.wantDynamoContains {
-				ms.Contains(resultsStr, w)
-			}
 			if tt.wantCredsCount < 1 {
 				return
 			}
 
 			// Ensure there are the correct number of credentials by first decoding them
-			decoded, err := testUser.ApiKey.Decrypt(results.Items[0][`EncryptedCredentials`].B)
+			value := results.Items[0][`EncryptedCredentials`]
+			valueB, ok := value.(*types.AttributeValueMemberB)
+			ms.True(ok)
+			decoded, err := testUser.ApiKey.Decrypt(valueB.Value)
 			ms.NoError(err, "error decrypting EncryptedCredentials")
 
 			decoded = bytes.Trim(decoded, "\x00")
@@ -413,7 +410,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 func (ms *MfaSuite) Test_BeginLogin() {
 	awsConfig := testAwsConfig()
 	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(&awsConfig)
+	localStorage, err := NewStorage(awsConfig)
 	ms.NoError(err, "failed creating local storage for test")
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
@@ -487,11 +484,11 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	localStorage.Store(envConfig.WebauthnTable, ctxWithUserCredentials)
 
 	tests := []struct {
-		name               string
-		httpWriter         *lambdaResponseWriter
-		httpReq            http.Request
-		wantBodyContains   []string
-		wantDynamoContains []string //  test will replace line ends and double spaces with blank string
+		name             string
+		httpWriter       *lambdaResponseWriter
+		httpReq          http.Request
+		wantBodyContains []string
+		verifyFn         func(results *dynamodb.ScanOutput)
 	}{
 		{
 			name:             "no user",
@@ -516,11 +513,12 @@ func (ms *MfaSuite) Test_BeginLogin() {
 				`"id":"` + string(credIDEncoded1),
 				`"id":"` + string(credIDEncoded2),
 			},
-			wantDynamoContains: []string{
-				`{Count: 1`,
-				`uuid: {S: "` + userID,
-				`EncryptedSessionData: {B: <binary> len `,
-				`apiKey: {S: "` + apiKeyKey,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				ms.Equal(int32(1), results.Count) // Still only one user, but now with 2 credentials
+				ms.Equal(userID, results.Items[0]["uuid"].(*types.AttributeValueMemberS).Value)
+				_, isB := results.Items[0]["EncryptedSessionData"].(*types.AttributeValueMemberB)
+				ms.True(isB)
+				ms.Equal(apiKeyKey, results.Items[0]["apiKey"].(*types.AttributeValueMemberS).Value)
 			},
 		},
 	}
@@ -533,7 +531,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 				ms.Contains(gotBody, w)
 			}
 
-			if len(tt.wantDynamoContains) == 0 {
+			if tt.verifyFn == nil {
 				return
 			}
 
@@ -541,22 +539,18 @@ func (ms *MfaSuite) Test_BeginLogin() {
 				TableName: aws.String(envCfg.WebauthnTable),
 			}
 
-			results, err := localStorage.client.Scan(params)
+			ctx := context.Background()
+			results, err := localStorage.client.Scan(ctx, params)
 			ms.NoError(err, "failed to scan storage for results")
 
-			// remove extra spaces and line endings
-			resultsStr := formatDynamoResults(results)
-
-			for _, w := range tt.wantDynamoContains {
-				ms.Contains(resultsStr, w)
-			}
+			tt.verifyFn(results)
 		})
 	}
 }
 
 func (ms *MfaSuite) Test_FinishLogin() {
 	awsConfig := testAwsConfig()
-	localStorage, err := NewStorage(&awsConfig)
+	localStorage, err := NewStorage(awsConfig)
 	ms.NoError(err, "failed creating local storage for test")
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
@@ -827,19 +821,16 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 		TableName: aws.String(baseConfigs.EnvConfig.ApiKeyTable),
 	}
 
-	results, err := baseConfigs.Storage.client.Scan(params)
+	ctx := context.Background()
+	results, err := baseConfigs.Storage.client.Scan(ctx, params)
 	ms.NoError(err, "failed to scan ApiKey storage for results")
-
-	resultsStr := formatDynamoResults(results)
-	ms.Contains(resultsStr, "Count: 3", "initial ApiKey data wasn't saved properly")
+	ms.Equal(int32(3), results.Count, "initial ApiKey data wasn't saved properly")
 
 	params.TableName = aws.String(baseConfigs.EnvConfig.WebauthnTable)
 
-	results, err = baseConfigs.Storage.client.Scan(params)
+	results, err = baseConfigs.Storage.client.Scan(ctx, params)
 	ms.NoError(err, "failed to scan Webauthn storage for results")
-
-	resultsStr = formatDynamoResults(results)
-	ms.Contains(resultsStr, "Count: 3", "updated Webauthn data wasn't saved properly")
+	ms.Equal(int32(3), results.Count, "updated Webauthn data wasn't saved properly")
 
 	tests := []struct {
 		name            string
@@ -847,7 +838,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 		credID          string
 		wantErrContains string
 		wantStatus      int
-		wantContains    []string
+		wantIDs         []string
 		wantCredIDs     [][]byte
 		dontWantCredID  []byte
 	}{
@@ -870,7 +861,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			credID:          "bad_one",
 			wantErrContains: "credential not found with id: bad_one",
 			wantStatus:      http.StatusNotFound,
-			wantContains:    []string{testUser1.ID},
+			wantIDs:         []string{testUser1.ID},
 			wantCredIDs:     [][]byte{testUser1.Credentials[0].ID},
 		},
 		{
@@ -878,7 +869,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			user:           testUser2,
 			credID:         hashAndEncodeKeyHandle(testUser2.Credentials[0].ID),
 			wantStatus:     http.StatusNoContent,
-			wantContains:   []string{testUser0.ID, testUser1.ID, testUser2.ID},
+			wantIDs:        []string{testUser0.ID, testUser1.ID, testUser2.ID},
 			wantCredIDs:    [][]byte{testUser2.Credentials[1].ID},
 			dontWantCredID: testUser2.Credentials[0].ID,
 		},
@@ -907,13 +898,15 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 				return
 			}
 
-			results, err := baseConfigs.Storage.client.Scan(params)
+			results, err := baseConfigs.Storage.client.Scan(ctx, params)
 			ms.NoError(err, "failed to scan storage for results")
 
-			resultsStr := formatDynamoResults(results)
-
-			for _, w := range tt.wantContains {
-				ms.Contains(resultsStr, w, "incorrect db results missing string")
+			if tt.wantIDs != nil {
+				got := make([]string, results.Count)
+				for i, item := range results.Items {
+					got[i] = item["uuid"].(*types.AttributeValueMemberS).Value
+				}
+				ms.ElementsMatch(got, tt.wantIDs)
 			}
 
 			gotUser := tt.user

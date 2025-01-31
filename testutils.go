@@ -1,6 +1,7 @@
 package mfa
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
@@ -8,9 +9,10 @@ import (
 	"os"
 	"strings"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/awserr"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 
 	u2fsim "github.com/silinternational/serverless-mfa-api-go/u2fsimulator"
 )
@@ -18,11 +20,15 @@ import (
 const localAppID = "http://localhost"
 
 func testAwsConfig() aws.Config {
-	return aws.Config{
-		Endpoint:   aws.String(os.Getenv("AWS_ENDPOINT")),
-		Region:     aws.String(os.Getenv("AWS_DEFAULT_REGION")),
-		DisableSSL: aws.Bool(true),
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithRegion(os.Getenv("AWS_DEFAULT_REGION")),
+		config.WithBaseEndpoint(os.Getenv("AWS_ENDPOINT")),
+	)
+	if err != nil {
+		panic("testAwsConfig failed at LoadDefaultConfig: " + err.Error())
 	}
+	return cfg
 }
 
 func testEnvConfig(awsConfig aws.Config) EnvConfig {
@@ -31,8 +37,7 @@ func testEnvConfig(awsConfig aws.Config) EnvConfig {
 		WebauthnTable:    "WebAuthn",
 		AwsEndpoint:      os.Getenv("AWS_ENDPOINT"),
 		AwsDefaultRegion: os.Getenv("AWS_DEFAULT_REGION"),
-		AwsDisableSSL:    true,
-		AWSConfig:        &awsConfig,
+		AWSConfig:        awsConfig,
 	}
 
 	SetConfig(envCfg)
@@ -42,60 +47,45 @@ func testEnvConfig(awsConfig aws.Config) EnvConfig {
 func initDb(storage *Storage) error {
 	var err error
 	if storage == nil {
-		awsCfg := testAwsConfig()
-		storage, err = NewStorage(&aws.Config{
-			Endpoint:   awsCfg.Endpoint,
-			Region:     awsCfg.Region,
-			DisableSSL: aws.Bool(true),
-		})
+		storage, err = NewStorage(testAwsConfig())
 		if err != nil {
 			return err
 		}
 	}
 
+	ctx := context.Background()
+
 	// attempt to delete tables in case already exists
 	tables := map[string]string{"WebAuthn": "uuid", "ApiKey": "value"}
-	for name, _ := range tables {
+	for name := range tables {
 		deleteTable := &dynamodb.DeleteTableInput{
 			TableName: aws.String(name),
 		}
-		_, err = storage.client.DeleteTable(deleteTable)
-		if err != nil {
-			if aerr, ok := err.(awserr.Error); ok {
-				switch aerr.Code() {
-				case dynamodb.ErrCodeResourceNotFoundException:
-					// this is fine
-				default:
-					return aerr
-				}
-			} else {
-				return err
-			}
-		}
+		_, _ = storage.client.DeleteTable(ctx, deleteTable)
 	}
 
 	// create tables
 	for table, attr := range tables {
 		createTable := &dynamodb.CreateTableInput{
-			AttributeDefinitions: []*dynamodb.AttributeDefinition{
+			AttributeDefinitions: []types.AttributeDefinition{
 				{
 					AttributeName: aws.String(attr),
-					AttributeType: aws.String("S"),
+					AttributeType: types.ScalarAttributeTypeS,
 				},
 			},
-			KeySchema: []*dynamodb.KeySchemaElement{
+			KeySchema: []types.KeySchemaElement{
 				{
 					AttributeName: aws.String(attr),
-					KeyType:       aws.String("HASH"),
+					KeyType:       types.KeyTypeHash,
 				},
 			},
-			ProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+			ProvisionedThroughput: &types.ProvisionedThroughput{
 				ReadCapacityUnits:  aws.Int64(3),
 				WriteCapacityUnits: aws.Int64(3),
 			},
 			TableName: aws.String(table),
 		}
-		_, err = storage.client.CreateTable(createTable)
+		_, err = storage.client.CreateTable(ctx, createTable)
 		if err != nil {
 			return err
 		}
@@ -126,11 +116,10 @@ type ClientData struct {
 }
 
 // GenerateAuthenticationSig appends the clientData to the authData and uses the privateKey's public Key to sign it
-//  via a sha256 hashing algorithm.
+// via a sha256 hashing algorithm.
 // It returns the base64 encoded version of the marshaled version of the corresponding dsa signature {r:bigInt, s:bigInt}
 // It does not use any kind of randomized data in this process
 func GenerateAuthenticationSig(authData, clientData []byte, privateKey *ecdsa.PrivateKey) string {
-
 	clientDataHash := sha256.Sum256(clientData)
 	signatureData := append(authData, clientDataHash[:]...)
 

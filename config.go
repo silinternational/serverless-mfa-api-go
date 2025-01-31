@@ -1,17 +1,16 @@
 package mfa
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 
-	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
 )
 
-var (
-	storage   *Storage
-	envConfig EnvConfig
-)
+var envConfig EnvConfig
 
 // EnvConfig holds environment specific configurations and is populated on init
 type EnvConfig struct {
@@ -20,23 +19,20 @@ type EnvConfig struct {
 
 	AwsEndpoint      string `default:"" split_words:"true"`
 	AwsDefaultRegion string `default:"" split_words:"true"`
-	AwsDisableSSL    bool   `default:"false" split_words:"true"`
 
-	AWSConfig *aws.Config `json:"-"`
+	AWSConfig aws.Config `json:"-"`
 }
 
 func (e *EnvConfig) InitAWS() {
-	e.AWSConfig = &aws.Config{
-		DisableSSL: aws.Bool(e.AwsDisableSSL),
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithRegion(e.AwsDefaultRegion),
+		config.WithBaseEndpoint(e.AwsEndpoint),
+	)
+	if err != nil {
+		panic("InitAWS failed at LoadDefaultConfig: " + err.Error())
 	}
-
-	if e.AwsEndpoint != "" {
-		e.AWSConfig.Endpoint = aws.String(e.AwsEndpoint)
-	}
-
-	if e.AwsDefaultRegion != "" {
-		e.AWSConfig.Region = aws.String(e.AwsDefaultRegion)
-	}
+	e.AWSConfig = cfg
 }
 
 func (e *EnvConfig) String() string {

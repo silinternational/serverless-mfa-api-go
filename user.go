@@ -26,31 +26,31 @@ const (
 
 type DynamoUser struct {
 	// Shared fields between U2F and WebAuthn
-	ID          string   `json:"uuid"`
-	ApiKeyValue string   `json:"apiKey"`
-	ApiKey      ApiKey   `json:"-"`
-	Store       *Storage `json:"-"`
+	ID          string   `dynamodbav:"uuid" json:"uuid"`
+	ApiKeyValue string   `dynamodbav:"apiKey" json:"apiKey"`
+	ApiKey      ApiKey   `dynamodbav:"-" json:"-"`
+	Store       *Storage `dynamodbav:"-" json:"-"`
 
 	// U2F fields
-	AppId              string `json:"-"`
-	EncryptedAppId     string `json:"encryptedAppId,omitempty"`
-	KeyHandle          string `json:"-"`
-	EncryptedKeyHandle string `json:"encryptedKeyHandle,omitempty"`
-	PublicKey          string `json:"-"`
-	EncryptedPublicKey string `json:"encryptedPublicKey,omitempty"`
+	AppId              string `dynamodbav:"-" json:"-"`
+	EncryptedAppId     string `dynamodbav:"encryptedAppId" json:"encryptedAppId,omitempty"`
+	KeyHandle          string `dynamodbav:"-" json:"-"`
+	EncryptedKeyHandle string `dynamodbav:"encryptedKeyHandle" json:"encryptedKeyHandle,omitempty"`
+	PublicKey          string `dynamodbav:"-" json:"-"`
+	EncryptedPublicKey string `dynamodbav:"encryptedPublicKey" json:"encryptedPublicKey,omitempty"`
 
 	// WebAuthn fields
-	SessionData          webauthn.SessionData `json:"-"`
-	EncryptedSessionData []byte               `json:"EncryptedSessionData,omitempty"`
+	SessionData          webauthn.SessionData `dynamodbav:"-" json:"-"`
+	EncryptedSessionData []byte               `dynamodbav:"EncryptedSessionData" json:"EncryptedSessionData,omitempty"`
 
 	// These can be multiple Yubikeys or other WebAuthn entries
-	Credentials          []webauthn.Credential `json:"-"`
-	EncryptedCredentials []byte                `json:"EncryptedCredentials,omitempty"`
+	Credentials          []webauthn.Credential `dynamodbav:"-" json:"-"`
+	EncryptedCredentials []byte                `dynamodbav:"EncryptedCredentials" json:"EncryptedCredentials,omitempty"`
 
-	WebAuthnClient *webauthn.WebAuthn `json:"-"`
-	Name           string             `json:"-"`
-	DisplayName    string             `json:"-"`
-	Icon           string             `json:"-"`
+	WebAuthnClient *webauthn.WebAuthn `dynamodbav:"-" json:"-"`
+	Name           string             `dynamodbav:"-" json:"-"`
+	DisplayName    string             `dynamodbav:"-" json:"-"`
+	Icon           string             `dynamodbav:"-" json:"-"`
 }
 
 func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) DynamoUser {

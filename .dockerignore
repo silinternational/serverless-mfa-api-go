@@ -3,7 +3,7 @@
 
 # Whitelist required files
 !.env.encrypted
-!codeship/*
+!scripts/*
 !lambda/*
 !server/*
 !u2fsimulator/*

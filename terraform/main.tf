@@ -9,10 +9,9 @@ locals {
 */
 module "serverless-user" {
   source  = "silinternational/serverless-user/aws"
-  version = "0.3.2"
+  version = "~> 0.4.2"
 
   app_name           = "${var.app_name}-${var.app_env}"
-  aws_region         = var.aws_region
   aws_region_policy  = "*"
   enable_api_gateway = true
   extra_policies     = var.extra_policies
@@ -21,7 +20,7 @@ module "serverless-user" {
 // Set up custom domain name for easier fail-over.
 module "dns_for_failover" {
   source  = "silinternational/serverless-api-dns-for-failover/aws"
-  version = "~>0.5.1"
+  version = "~> 0.6.0"
 
   api_name             = local.api_name
   cloudflare_zone_name = var.cloudflare_domain

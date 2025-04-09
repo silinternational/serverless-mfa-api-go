@@ -1,15 +1,16 @@
 package mfa
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
 func (ms *MfaSuite) Test_User_DeleteCredential() {
-
 	baseConfigs := getDBConfig(ms)
 
 	users := getTestWebauthnUsers(ms, baseConfigs)
@@ -20,15 +21,14 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 	}
 
 	tests := []struct {
-		name             string
-		user             DynamoUser
-		credID           string
-		wantErrContains  string
-		wantStatus       int
-		wantContains     []string
-		dontWantContains string
-		wantCredIDs      [][]byte
-		dontWantCredID   []byte
+		name            string
+		user            DynamoUser
+		credID          string
+		wantErrContains string
+		wantStatus      int
+		wantCredIDs     [][]byte
+		dontWantCredID  []byte
+		verifyFn        func(*dynamodb.ScanOutput)
 	}{
 		{
 			name:            "no webauthn credentials",
@@ -36,14 +36,26 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			credID:          "noMatchingCredID",
 			wantStatus:      http.StatusNotFound,
 			wantErrContains: "No webauthn credentials available.",
-			wantContains:    []string{"encryptedAppId:"},
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				found := false
+				for i := range results.Items {
+					if results.Items[i]["encryptedAppId"].(*types.AttributeValueMemberS).Value == "someEncryptedAppId" {
+						found = true
+					}
+				}
+				ms.True(found)
+			},
 		},
 		{
-			name:             "legacy u2f credential",
-			user:             testUser0,
-			credID:           LegacyU2FCredID,
-			wantStatus:       http.StatusNoContent,
-			dontWantContains: "encryptedAppId:",
+			name:       "legacy u2f credential",
+			user:       testUser0,
+			credID:     LegacyU2FCredID,
+			wantStatus: http.StatusNoContent,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				for i := range results.Items {
+					ms.Equal("", results.Items[i]["encryptedAppId"].(*types.AttributeValueMemberS).Value)
+				}
+			},
 		},
 		{
 			name:            "one credential but bad credential ID",
@@ -65,9 +77,17 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			user:           testUser2,
 			credID:         hashAndEncodeKeyHandle(testUser2.Credentials[0].ID),
 			wantStatus:     http.StatusNoContent,
-			wantContains:   []string{"Count: 3", testUser0.ID, testUser1.ID, testUser2.ID},
 			wantCredIDs:    [][]byte{testUser2.Credentials[1].ID},
 			dontWantCredID: testUser2.Credentials[0].ID,
+			verifyFn: func(results *dynamodb.ScanOutput) {
+				ms.Equal(int32(3), results.Count)
+				want := []string{testUser0.ID, testUser1.ID, testUser2.ID}
+				got := make([]string, len(want))
+				for i := range want {
+					got[i] = results.Items[i]["uuid"].(*types.AttributeValueMemberS).Value
+				}
+				ms.ElementsMatch(got, want)
+			},
 		},
 	}
 	for _, tt := range tests {
@@ -83,17 +103,12 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 				ms.NoError(err, "unexpected error")
 			}
 
-			results, err := baseConfigs.Storage.client.Scan(dbParams)
+			ctx := context.Background()
+			results, err := baseConfigs.Storage.client.Scan(ctx, dbParams)
 			ms.NoError(err, "failed to scan storage for results")
 
-			resultsStr := formatDynamoResults(results)
-
-			for _, w := range tt.wantContains {
-				ms.Contains(resultsStr, w, "incorrect db results missing string")
-			}
-
-			if tt.dontWantContains != "" {
-				ms.NotContainsf(resultsStr, tt.dontWantContains, "unexpected string included in results")
+			if tt.verifyFn != nil {
+				tt.verifyFn(results)
 			}
 
 			gotUser := DynamoUser{

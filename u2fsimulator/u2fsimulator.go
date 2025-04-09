@@ -70,7 +70,7 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 		data = body
 	}
 
-	jBody := []byte{}
+	var jBody []byte
 	var err error
 	if data != nil {
 		jBody, err = json.Marshal(data)

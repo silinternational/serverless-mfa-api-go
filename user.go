@@ -173,7 +173,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
 		return http.StatusNotFound, err
 	}
 
-	remainingCreds := []webauthn.Credential{}
+	var remainingCreds []webauthn.Credential
 
 	// remove the requested credential from among the user's current webauthn credentials
 	for _, c := range u.Credentials {

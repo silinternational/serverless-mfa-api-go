@@ -346,7 +346,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 	}
 
 	if !valid {
-		return nil, fmt.Errorf("invalid api secret for key %w", key)
+		return nil, fmt.Errorf("invalid api secret for key %s", key)
 	}
 
 	// apiMeta includes info about the user and webauthn config

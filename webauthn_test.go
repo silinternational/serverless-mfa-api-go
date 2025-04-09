@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -54,7 +54,7 @@ func getTestAssertionResponse(credID, authData, clientData, attestationObject st
 func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 string, user *DynamoUser) *http.Request {
 	assertResp := getTestAssertionResponse(credID1, authData1, clientData1, attestObject1)
 
-	body := ioutil.NopCloser(bytes.NewReader(assertResp))
+	body := io.NopCloser(bytes.NewReader(assertResp))
 
 	reqWithBody := &http.Request{Body: body}
 	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
@@ -638,7 +638,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
           }
 		}`
 
-	body1 := ioutil.NopCloser(bytes.NewReader([]byte(assertionResponse1)))
+	body1 := io.NopCloser(bytes.NewReader([]byte(assertionResponse1)))
 	reqWithBody1 := http.Request{Body: body1}
 	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, &userWithCreds)
 	reqWithBody1 = *reqWithBody1.WithContext(ctxUserCred1)
@@ -660,7 +660,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
           }
 		}`
 
-	body2 := ioutil.NopCloser(bytes.NewReader([]byte(assertionResponse2)))
+	body2 := io.NopCloser(bytes.NewReader([]byte(assertionResponse2)))
 
 	reqWithBody2 := http.Request{Body: body2}
 	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, &userWithCreds)

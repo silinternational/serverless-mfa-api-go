@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 
@@ -300,7 +300,7 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 		return "", fmt.Errorf("request Body may not be nil in FinishRegistration")
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to get api config from request: %w", err)
 	}
@@ -361,7 +361,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		return nil, fmt.Errorf("request Body may not be nil in FinishLogin")
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("failed to read request body: %s", err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %s", err)

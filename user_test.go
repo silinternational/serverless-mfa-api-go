@@ -35,7 +35,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			user:            testUser0,
 			credID:          "noMatchingCredID",
 			wantStatus:      http.StatusNotFound,
-			wantErrContains: "No webauthn credentials available.",
+			wantErrContains: "no webauthn credentials available",
 			verifyFn: func(results *dynamodb.ScanOutput) {
 				found := false
 				for i := range results.Items {

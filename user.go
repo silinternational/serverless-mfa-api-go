@@ -153,7 +153,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
 	}
 
 	if len(u.Credentials) == 0 {
-		err := fmt.Errorf("error in DeleteCredential. No webauthn credentials available.")
+		err := fmt.Errorf("error in DeleteCredential: no webauthn credentials available")
 		return http.StatusNotFound, err
 	}
 

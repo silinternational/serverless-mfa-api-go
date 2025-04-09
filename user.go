@@ -382,7 +382,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
 		}
 
-		appIdHash := sha256.Sum256([]byte(appid))
+		appIdHash := sha256.Sum256(appid)
 		rpIdHash := sha256.Sum256([]byte(u.WebAuthnClient.Config.RPID))
 
 		if fmt.Sprintf("%x", parsedResponse.Response.AuthenticatorData.RPIDHash) == fmt.Sprintf("%x", appIdHash) {

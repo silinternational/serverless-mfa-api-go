@@ -428,70 +428,69 @@ func (u *DynamoUser) WebAuthnIcon() string {
 
 // WebAuthnCredentials returns an array of credentials (passkeys) plus a U2F credential if present
 func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
-	creds := u.Credentials
-
-	if u.EncryptedKeyHandle != "" && u.EncryptedPublicKey != "" {
-		credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
-		if err != nil {
-			log.Printf("unable to decrypt credential id: %s", err)
-			return nil
-		}
-
-		// decryption process includes extra/invalid \x00 character, so trim it out
-		// at some point early in dev this was needed, but in testing recently it doesn't
-		// make a difference. Leaving commented out for now until we know 100% it's not needed
-		// credId = bytes.Trim(credId, "\x00")
-
-		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
-		if err != nil {
-			log.Println("error decoding credential id:", err)
-			return nil
-		}
-
-		pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
-		if err != nil {
-			log.Printf("unable to decrypt pubic key: %s", err)
-			return nil
-		}
-		// Same as credId
-		// pubKey = bytes.Trim(pubKey, "\x00")
-
-		decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
-		if err != nil {
-			log.Println("error decoding public key:", err)
-			return nil
-		}
-
-		// U2F key is concatenation of 0x4 + Xcoord + Ycoord
-		// documentation / example at https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html
-		coordLen := (len(decodedPubKey) - 1) / 2
-		xCoord := decodedPubKey[1 : coordLen+1]
-		yCoord := decodedPubKey[1+coordLen:]
-
-		ec2PublicKey := webauthncose.EC2PublicKeyData{
-			XCoord: xCoord,
-			YCoord: yCoord,
-			PublicKeyData: webauthncose.PublicKeyData{
-				Algorithm: int64(webauthncose.AlgES256),
-				KeyType:   int64(webauthncose.EllipticKey),
-			},
-		}
-
-		// Get the CBOR-encoded representation of the OKPPublicKeyData
-		cborEncodedKey, err := cbor.Marshal(ec2PublicKey)
-		if err != nil {
-			log.Printf("error marshalling key to cbor: %s", err)
-			return nil
-		}
-
-		creds = append(creds, webauthn.Credential{
-			ID:              decodedCredId,
-			PublicKey:       cborEncodedKey,
-			AttestationType: string(protocol.PublicKeyCredentialType),
-		})
+	if u.EncryptedKeyHandle == "" || u.EncryptedPublicKey == "" {
+		// no U2F credential found
+		return u.Credentials
 	}
 
-	return creds
+	credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
+	if err != nil {
+		log.Printf("unable to decrypt credential id: %s", err)
+		return nil
+	}
+
+	// decryption process includes extra/invalid \x00 character, so trim it out
+	// at some point early in dev this was needed, but in testing recently it doesn't
+	// make a difference. Leaving commented out for now until we know 100% it's not needed
+	// credId = bytes.Trim(credId, "\x00")
+
+	decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
+	if err != nil {
+		log.Println("error decoding credential id:", err)
+		return nil
+	}
+
+	pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
+	if err != nil {
+		log.Printf("unable to decrypt pubic key: %s", err)
+		return nil
+	}
+	// Same as credId
+	// pubKey = bytes.Trim(pubKey, "\x00")
+
+	decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
+	if err != nil {
+		log.Println("error decoding public key:", err)
+		return nil
+	}
+
+	// U2F key is concatenation of 0x4 + Xcoord + Ycoord
+	// documentation / example at https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html
+	coordLen := (len(decodedPubKey) - 1) / 2
+	xCoord := decodedPubKey[1 : coordLen+1]
+	yCoord := decodedPubKey[1+coordLen:]
+
+	ec2PublicKey := webauthncose.EC2PublicKeyData{
+		XCoord: xCoord,
+		YCoord: yCoord,
+		PublicKeyData: webauthncose.PublicKeyData{
+			Algorithm: int64(webauthncose.AlgES256),
+			KeyType:   int64(webauthncose.EllipticKey),
+		},
+	}
+
+	// Get the CBOR-encoded representation of the OKPPublicKeyData
+	cborEncodedKey, err := cbor.Marshal(ec2PublicKey)
+	if err != nil {
+		log.Printf("error marshalling key to cbor: %s", err)
+		return nil
+	}
+
+	return append(u.Credentials, webauthn.Credential{
+		ID:              decodedCredId,
+		PublicKey:       cborEncodedKey,
+		AttestationType: string(protocol.PublicKeyCredentialType),
+	})
 }
 
 // isNullByteSlice works around a bug in JSON unmarshalling for a URL-encoded Base64 string

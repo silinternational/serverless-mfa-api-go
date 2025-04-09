@@ -75,7 +75,7 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	if data != nil {
 		jBody, err = json.Marshal(data)
 		if err != nil {
-			log.Printf("failed to marshal response body to json: %s\n", err.Error())
+			log.Printf("failed to marshal response body to json: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("failed to marshal response body to json"))
 			return

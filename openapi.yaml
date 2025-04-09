@@ -2,8 +2,10 @@ openapi: 3.0.0
 
 info:
   title: MFA API
-  description: Webauthn 2sv API implemented with Go and AWS Lambda
-  version: 1.0.0
+  description: >-
+    Webauthn 2sv API implemented with Go and AWS Lambda. NOTE: this spec is in draft form and may not be complete or
+    100% accurate.
+  version: 0.1.0
 
 servers:
 - url: 'https://api.example.org'
@@ -15,7 +17,7 @@ security:
 components:
   headers:
 #    Note: OpenAPI 3.0.0 does not officially support request headers in components, but it appears to
-#    be supported by Redocly and Smartbear    
+#    be supported by Redocly and Smartbear
     x-mfa-RPDisplayName:
       in: header
       name: x-mfa-RPDisplayName

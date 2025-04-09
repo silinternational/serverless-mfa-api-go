@@ -393,7 +393,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 			value := results.Items[0][`EncryptedCredentials`]
 			valueB, ok := value.(*types.AttributeValueMemberB)
 			ms.True(ok)
-			decoded, err := testUser.ApiKey.Decrypt(valueB.Value)
+			decoded, err := testUser.ApiKey.DecryptData(valueB.Value)
 			ms.NoError(err, "error decrypting EncryptedCredentials")
 
 			decoded = bytes.Trim(decoded, "\x00")

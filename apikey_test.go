@@ -110,15 +110,15 @@ func TestApiKey_EncryptDecrypt(t *testing.T) {
 				Secret: tt.secret,
 			}
 
-			encrypted, err := k1.Encrypt(tt.plaintext)
+			encrypted, err := k1.EncryptData(tt.plaintext)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Encrypt() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("EncryptData() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 
-			decrypted, err := k2.Decrypt(encrypted)
+			decrypted, err := k2.DecryptData(encrypted)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("Decrypt() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("DecryptData() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 

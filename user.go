@@ -335,7 +335,7 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 	if u.EncryptedAppId != "" {
 		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
 		if err != nil {
-			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
+			return nil, fmt.Errorf("unable to decrypt legacy app id: %w", err)
 		}
 		extensions["appid"] = string(appid)
 	}
@@ -364,14 +364,14 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("failed to read request body: %s", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %w", err)
 	}
 
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialRequestResponseBody(br)
 	if err != nil {
 		logProtocolError(fmt.Sprintf("failed to parse credential request response body: %s", body), err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %w", err)
 	}
 
 	// If user has registered U2F creds, check if RPIDHash is actually hash of AppId
@@ -379,7 +379,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	if u.EncryptedAppId != "" {
 		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
 		if err != nil {
-			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
+			return nil, fmt.Errorf("unable to decrypt legacy app id: %w", err)
 		}
 
 		appIdHash := sha256.Sum256(appid)
@@ -400,7 +400,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
 		logProtocolError("failed to validate login", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %w", err)
 	}
 
 	return credential, nil

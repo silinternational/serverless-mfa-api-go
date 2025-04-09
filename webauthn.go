@@ -322,7 +322,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 
 	localStorage, err := NewStorage(envConfig.AWSConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error initializing storage: %s", err.Error())
+		return nil, fmt.Errorf("error initializing storage: %w", err)
 	}
 
 	apiKey := ApiKey{
@@ -333,7 +333,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 
 	err = apiKey.Load()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load api key: %s", err.Error())
+		return nil, fmt.Errorf("failed to load api key: %w", err)
 	}
 
 	if apiKey.ActivatedAt == 0 {
@@ -342,24 +342,23 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 
 	valid, err := apiKey.IsCorrect(secret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate api key: %s", err.Error())
+		return nil, fmt.Errorf("failed to validate api key: %w", err)
 	}
 
 	if !valid {
-		return nil, fmt.Errorf("invalid api secret for key %s: %s", key, err.Error())
+		return nil, fmt.Errorf("invalid api secret for key %w", key)
 	}
 
 	// apiMeta includes info about the user and webauthn config
 	apiMeta, err := getApiMetaFromRequest(r)
 	if err != nil {
-		msg := fmt.Sprintf("unable to retrieve api meta information from request: %s", err.Error())
-		log.Println(msg)
-		return nil, fmt.Errorf(msg)
+		log.Printf("unable to retrieve API meta information from request: %s", err)
+		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
 	}
 
 	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %s", err.Error())
+		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
 	}
 
 	user := NewDynamoUser(apiMeta, localStorage, apiKey, webAuthnClient)

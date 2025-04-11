@@ -37,7 +37,7 @@ func (ms *MfaSuite) TestStorage_StoreLoad() {
 			},
 			args: args{
 				key: "2B28BED1-1225-4EC9-98F9-EAB8FBCEDBA0",
-				item: &DynamoUser{
+				item: &WebauthnUser{
 					ID:          "2B28BED1-1225-4EC9-98F9-EAB8FBCEDBA0",
 					Name:        "test_user",
 					DisplayName: "Test User",
@@ -64,7 +64,7 @@ func (ms *MfaSuite) TestStorage_StoreLoad() {
 			}
 			ms.NoError(err, "unexpected error with Store()")
 
-			var user DynamoUser
+			var user WebauthnUser
 			ms.NoError(s.Load(tt.fields.Table, "uuid", tt.args.key, &user), "error with s.Load()")
 
 			ms.Equal(tt.args.key, user.ID, "incorrect user.ID")

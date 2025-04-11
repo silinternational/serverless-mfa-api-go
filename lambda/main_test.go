@@ -6,8 +6,9 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/gorilla/mux"
-	mfa "github.com/silinternational/serverless-mfa-api-go"
 	"github.com/stretchr/testify/require"
+
+	mfa "github.com/silinternational/serverless-mfa-api-go"
 )
 
 func TestCredentialToDelete(t *testing.T) {

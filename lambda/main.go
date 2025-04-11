@@ -25,7 +25,7 @@ func init() {
 
 	err := envconfig.Process("", &envConfig)
 	if err != nil {
-		log.Fatal(fmt.Errorf("error loading env vars: " + err.Error()))
+		log.Fatalf("error loading env vars: %s", err)
 	}
 	envConfig.InitAWS()
 }
@@ -35,7 +35,7 @@ func main() {
 
 	err := envconfig.Process("", &envConfig)
 	if err != nil {
-		log.Fatal(fmt.Errorf("error loading env vars: " + err.Error()))
+		log.Fatalf("error loading env vars: %s", err)
 	}
 	envConfig.InitAWS()
 	mfa.SetConfig(envConfig)
@@ -124,7 +124,6 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 
 // clientError helper for send responses relating to client errors.
 func clientError(status int, body string) (events.APIGatewayProxyResponse, error) {
-
 	type cError struct {
 		Error string
 	}

@@ -14,8 +14,10 @@ import (
 	"golang.org/x/crypto/bcrypt"
 )
 
+// ApiKeyTablePK is the primary key in the ApiKey DynamoDB table
 const ApiKeyTablePK = "value"
 
+// ApiKey holds API key data from DynamoDB
 type ApiKey struct {
 	Key          string   `dynamodbav:"value" json:"value"`
 	Secret       string   `dynamodbav:"-" json:"-"`
@@ -26,11 +28,12 @@ type ApiKey struct {
 	Store        *Storage `dynamodbav:"-" json:"-"`
 }
 
+// Load refreshes a ApiKey object from the database record
 func (k *ApiKey) Load() error {
 	return k.Store.Load(envConfig.ApiKeyTable, ApiKeyTablePK, k.Key, k)
 }
 
-// Hash - Generate bcrypt hash from Secret and store in HashedSecret
+// Hash generates a bcrypt hash from the Secret field and stores it in HashedSecret
 func (k *ApiKey) Hash() error {
 	if k.Secret == "" {
 		return errors.New("empty secret cannot be hashed")
@@ -41,6 +44,7 @@ func (k *ApiKey) Hash() error {
 	return err
 }
 
+// IsCorrect returns true if and only if the given string is a match for HashedSecret
 func (k *ApiKey) IsCorrect(given string) (bool, error) {
 	if given == "" {
 		return false, errors.New("secret to compare cannot be empty")
@@ -57,7 +61,8 @@ func (k *ApiKey) IsCorrect(given string) (bool, error) {
 	return true, nil
 }
 
-func (k *ApiKey) Encrypt(plaintext []byte) ([]byte, error) {
+// EncryptData uses the Secret to AES encrypt an arbitrary data block. It does not encrypt the key itself.
+func (k *ApiKey) EncryptData(plaintext []byte) ([]byte, error) {
 	var sec []byte
 	var err error
 	sec, err = base64.StdEncoding.DecodeString(k.Secret)
@@ -73,7 +78,7 @@ func (k *ApiKey) Encrypt(plaintext []byte) ([]byte, error) {
 	// byte array to hold encrypted content
 	ciphertext := make([]byte, aes.BlockSize+len(plaintext))
 
-	// The IV needs to be unique, but not secure. Therefore it's common to
+	// The IV needs to be unique, but not secure. Therefore, it's common to
 	// include it at the beginning of the ciphertext.
 	iv := ciphertext[:aes.BlockSize]
 	if _, err := io.ReadFull(rand.Reader, iv); err != nil {
@@ -87,7 +92,8 @@ func (k *ApiKey) Encrypt(plaintext []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func (k *ApiKey) Decrypt(ciphertext []byte) ([]byte, error) {
+// DecryptData uses the Secret to AES decrypt an arbitrary data block. It does not decrypt the key itself.
+func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
 	var sec []byte
 	var err error
 	sec, err = base64.StdEncoding.DecodeString(k.Secret)
@@ -114,6 +120,8 @@ func (k *ApiKey) Decrypt(ciphertext []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
+// DecryptLegacy uses the Secret to AES decrypt an arbitrary data block. This is intended only for legacy data such
+// as U2F keys.
 func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
 	var sec []byte
 	var err error

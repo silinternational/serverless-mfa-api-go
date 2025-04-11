@@ -115,7 +115,7 @@ func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
 		return err
 	}
 
-	enc, err := u.ApiKey.Encrypt(js)
+	enc, err := u.ApiKey.EncryptData(js)
 	if err != nil {
 		return err
 	}
@@ -203,7 +203,7 @@ func (u *DynamoUser) encryptAndStoreCredentials() error {
 		return err
 	}
 
-	enc, err := u.ApiKey.Encrypt(js)
+	enc, err := u.ApiKey.EncryptData(js)
 	if err != nil {
 		return err
 	}
@@ -221,7 +221,7 @@ func (u *DynamoUser) Load() error {
 
 	// decrypt SessionStorage if available
 	if len(u.EncryptedSessionData) > 0 {
-		plain, err := u.ApiKey.Decrypt(u.EncryptedSessionData)
+		plain, err := u.ApiKey.DecryptData(u.EncryptedSessionData)
 		if err != nil {
 			return errors.Wrap(err, "failed to decrypt encrypted session data")
 		}
@@ -241,7 +241,7 @@ func (u *DynamoUser) Load() error {
 
 	// decrypt Credentials if available
 	if len(u.EncryptedCredentials) > 0 {
-		dec, err := u.ApiKey.Decrypt(u.EncryptedCredentials)
+		dec, err := u.ApiKey.DecryptData(u.EncryptedCredentials)
 		if err != nil {
 			return errors.Wrap(err, "failed to decrypt encrypted credential data")
 		}

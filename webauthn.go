@@ -296,20 +296,20 @@ func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 	return meta, nil
 }
 
-// getUserFromContext returns the authenticated DynamoUser from the request context. The authentication middleware or
+// getUserFromContext returns the authenticated WebauthnUser from the request context. The authentication middleware or
 // early handler processing inserts the authenticated user into the context for retrieval by this function.
-func getUserFromContext(r *http.Request) (*DynamoUser, error) {
-	user, ok := r.Context().Value(UserContextKey).(*DynamoUser)
+func getUserFromContext(r *http.Request) (*WebauthnUser, error) {
+	user, ok := r.Context().Value(UserContextKey).(*WebauthnUser)
 	if !ok {
-		return &DynamoUser{}, errors.New("unable to get user from request context")
+		return &WebauthnUser{}, errors.New("unable to get user from request context")
 	}
 
 	return user, nil
 }
 
 // AuthenticateRequest checks the provided API key against the keys stored in the database. If the key is active and
-// valid, a Webauthn client and DynamoUser are created and stored in the request context.
-func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
+// valid, a Webauthn client and WebauthnUser are created and stored in the request context.
+func AuthenticateRequest(r *http.Request) (*WebauthnUser, error) {
 	// get key and secret from headers
 	key := r.Header.Get("x-mfa-apikey")
 	secret := r.Header.Get("x-mfa-apisecret")
@@ -361,7 +361,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
 	}
 
-	user := NewDynamoUser(apiMeta, localStorage, apiKey, webAuthnClient)
+	user := NewWebauthnUser(apiMeta, localStorage, apiKey, webAuthnClient)
 
 	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
 	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {

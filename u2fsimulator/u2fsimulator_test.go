@@ -17,6 +17,7 @@ func newHttpResponseWriter() *httpResponseWriter {
 		Headers: http.Header{},
 	}
 }
+
 func (w *httpResponseWriter) Header() http.Header {
 	return w.Headers
 }
@@ -49,7 +50,7 @@ func (us *U2fSuite) Test_U2fRegistration() {
 	httpRequest, err := http.NewRequest(http.MethodPost, "https://example.com", bytes.NewBuffer(requestBody))
 	us.NoError(err, "error just creating http request for test")
 
-	httpRequest.Header.Set("x-mfa-UserUUID", "the-id-of-the-dynamo-user")
+	httpRequest.Header.Set("x-mfa-UserUUID", "the-id-of-the-webauthn-user")
 	httpRequest.Header.Set("x-mfa-RPID", rpID)
 	httpRequest.Header.Set("x-mfa-RPOrigin", rpID)
 

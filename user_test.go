@@ -22,7 +22,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 
 	tests := []struct {
 		name            string
-		user            DynamoUser
+		user            WebauthnUser
 		credID          string
 		wantErrContains string
 		wantStatus      int
@@ -111,7 +111,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 				tt.verifyFn(results)
 			}
 
-			gotUser := DynamoUser{
+			gotUser := WebauthnUser{
 				ID:     tt.user.ID,
 				ApiKey: tt.user.ApiKey,
 				Store:  baseConfigs.Storage,

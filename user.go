@@ -18,12 +18,18 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 )
 
-const (
-	UserContextKey  = "user"
-	WebAuthnTablePK = "uuid"
-	LegacyU2FCredID = "u2f"
-)
+// UserContextKey is the context key that points to the authenticated user
+const UserContextKey = "user"
 
+// WebAuthnTablePK is the primary key in the WebAuthn DynamoDB table
+const WebAuthnTablePK = "uuid"
+
+// LegacyU2FCredID is a special case credential ID for legacy U2F support. At most one credential for each user may
+// have this in its ID field.
+const LegacyU2FCredID = "u2f"
+
+// DynamoUser holds user data from DynamoDB, in both encrypted and unencrypted form. It also holds a Webauthn client
+// and Webauthn API data.
 type DynamoUser struct {
 	// Shared fields between U2F and WebAuthn
 	ID          string   `dynamodbav:"uuid" json:"uuid"`
@@ -53,6 +59,7 @@ type DynamoUser struct {
 	Icon           string             `dynamodbav:"-" json:"-"`
 }
 
+// NewDynamoUser creates a new DynamoUser from API input data, a storage client and a Webauthn client.
 func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) DynamoUser {
 	u := DynamoUser{
 		ID:             apiConfig.UserUUID,
@@ -76,6 +83,8 @@ func NewDynamoUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnC
 	return u
 }
 
+// RemoveU2F clears U2F fields in the user struct. To be used when a user has requested removal of their legacy U2F key.
+// Should be followed by a database store operation.
 func (u *DynamoUser) RemoveU2F() {
 	u.AppId = ""
 	u.EncryptedAppId = ""
@@ -85,11 +94,14 @@ func (u *DynamoUser) RemoveU2F() {
 	u.EncryptedPublicKey = ""
 }
 
+// unsetSessionData clears the encrypted session data from a user and stores the updated record in the database.
 func (u *DynamoUser) unsetSessionData() error {
 	u.EncryptedSessionData = nil
 	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 
+// saveSessionData encrypts the user's session data and updates the database record.
+// CAUTION: user data is refreshed from the database by this function. Any unsaved data will be lost.
 func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
 	// load to be sure working with latest data
 	err := u.Load()
@@ -112,6 +124,9 @@ func (u *DynamoUser) saveSessionData(sessionData webauthn.SessionData) error {
 	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 
+// saveNewCredential appends a new credential to the user's credential list, encrypts the list, and updates the
+// database record.
+// CAUTION: user data is refreshed from the database by this function. Any unsaved data will be lost.
 func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 	// load to be sure working with latest data
 	err := u.Load()
@@ -135,8 +150,9 @@ func (u *DynamoUser) saveNewCredential(credential webauthn.Credential) error {
 
 // DeleteCredential expects a hashed-encoded credential id. It finds a matching credential for that user and saves the
 // user without that credential included. Alternatively, if the given credential id indicates that a legacy U2F key
-// should be removed (e.g. by matching the string "u2f") then that user is saved with all of its legacy u2f fields
+// should be removed (i.e. by matching the string "u2f") then that user is saved with all of its legacy u2f fields
 // blanked out.
+// CAUTION: user data is refreshed from the database by this function. Any unsaved data will be lost.
 func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
 	// load to be sure working with the latest data
 	err := u.Load()
@@ -180,6 +196,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
 	return http.StatusNoContent, nil
 }
 
+// encryptAndStoreCredentials encrypts the user's credential list and updates the database record
 func (u *DynamoUser) encryptAndStoreCredentials() error {
 	js, err := json.Marshal(u.Credentials)
 	if err != nil {
@@ -195,6 +212,7 @@ func (u *DynamoUser) encryptAndStoreCredentials() error {
 	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 
+// Load refreshes a user object from the database record and decrypts the session data and credential list
 func (u *DynamoUser) Load() error {
 	err := u.Store.Load(envConfig.WebauthnTable, WebAuthnTablePK, u.ID, u)
 	if err != nil {
@@ -243,10 +261,13 @@ func (u *DynamoUser) Load() error {
 	return nil
 }
 
+// Delete removes the user from the database
 func (u *DynamoUser) Delete() error {
 	return u.Store.Delete(envConfig.WebauthnTable, WebAuthnTablePK, u.ID)
 }
 
+// BeginRegistration processes the first half of the Webauthn Registration flow for the user and returns the
+// CredentialCreation data to pass back to the client. User session data is saved in the database.
 func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
 	if u.WebAuthnClient == nil {
 		return nil, fmt.Errorf("dynamoUser, %s, missing WebAuthClient in BeginRegistration", u.Name)
@@ -271,6 +292,9 @@ func (u *DynamoUser) BeginRegistration() (*protocol.CredentialCreation, error) {
 	return options, nil
 }
 
+// FinishRegistration processes the last half of the Webauthn Registration flow for the user and returns the
+// key_handle_hash to pass back to the client. The client should store this value for later use. User session data is
+// cleared from the database.
 func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	if r.Body == nil {
 		return "", fmt.Errorf("request Body may not be nil in FinishRegistration")
@@ -304,6 +328,8 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 	return keyHandleHash, u.unsetSessionData()
 }
 
+// BeginLogin processes the first half of the Webauthn Authentication flow for the user and returns the
+// CredentialAssertion data to pass back to the client. User session data is saved in the database.
 func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 	extensions := protocol.AuthenticationExtensions{}
 	if u.EncryptedAppId != "" {
@@ -328,6 +354,8 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 	return options, nil
 }
 
+// FinishLogin processes the last half of the Webauthn Authentication flow for the user and returns the
+// Credential data to pass back to the client. User session data is untouched by this function.
 func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) {
 	if r.Body == nil {
 		return nil, fmt.Errorf("request Body may not be nil in FinishLogin")
@@ -363,7 +391,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	}
 
 	// there is an issue with URLEncodeBase64.UnmarshalJSON and null values
-	// see https://github.com/go-webauthn/webauthn/issues/69
+	// see https://github.com/duo-labs/webauthn/issues/69
 	// null byte sequence is []byte{158,233,101}
 	if isNullByteSlice(parsedResponse.Response.UserHandle) {
 		parsedResponse.Response.UserHandle = nil
@@ -378,27 +406,27 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	return credential, nil
 }
 
-// User ID according to the Relying Party
+// WebAuthnID returns the user's ID according to the Relying Party
 func (u *DynamoUser) WebAuthnID() []byte {
 	return []byte(u.ID)
 }
 
-// User Name according to the Relying Party
+// WebAuthnName returns the user's name according to the Relying Party
 func (u *DynamoUser) WebAuthnName() string {
 	return u.Name
 }
 
-// Display Name of the user
+// WebAuthnDisplayName returns the display name of the user
 func (u *DynamoUser) WebAuthnDisplayName() string {
 	return u.DisplayName
 }
 
-// User's icon url
+// WebAuthnIcon returns the user's icon URL
 func (u *DynamoUser) WebAuthnIcon() string {
 	return u.Icon
 }
 
-// WebAuthnCredentials returns an array of credentials plus a U2F cred if present
+// WebAuthnCredentials returns an array of credentials (passkeys) plus a U2F credential if present
 func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 	creds := u.Credentials
 
@@ -466,7 +494,8 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 	return creds
 }
 
-// isNullByteSlice works around a bug in json unmarshalling for a urlencoded base64 string
+// isNullByteSlice works around a bug in JSON unmarshalling for a URL-encoded Base64 string
+// (see https://github.com/duo-labs/webauthn/issues/69)
 func isNullByteSlice(slice []byte) bool {
 	if len(slice) != 3 {
 		return false
@@ -477,12 +506,15 @@ func isNullByteSlice(slice []byte) bool {
 	return false
 }
 
+// hashAndEncodeKeyHandle returns the Base64 URL-encoded SHA256 hash of a byte slice to provide a hash of a key
+// handle to the client.
 func hashAndEncodeKeyHandle(id []byte) string {
 	hash := sha256.Sum256(id)
 	return base64.RawURLEncoding.EncodeToString(hash[:])
 }
 
-// logProtocolError logs a detailed message if the given error is an Error from go-webauthn/webauthn/protocol
+// logProtocolError logs an error and includes additional detail if the given error is an Error from
+// go-webauthn/webauthn/protocol
 func logProtocolError(msg string, err error) {
 	var protocolError *protocol.Error
 	if errors.As(err, &protocolError) {

@@ -74,7 +74,7 @@ func TestApiKey_Hash(t *testing.T) {
 			}
 			valid, err := k.IsCorrect(tt.Secret)
 			if err != nil {
-				t.Errorf("hashed password not valid after hashing??? error: %s", err.Error())
+				t.Errorf("hashed password not valid after hashing??? error: %s", err)
 				return
 			}
 			if !valid {

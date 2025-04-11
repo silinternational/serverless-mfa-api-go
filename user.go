@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 
@@ -173,7 +173,7 @@ func (u *DynamoUser) DeleteCredential(credIDHash string) (int, error) {
 		return http.StatusNotFound, err
 	}
 
-	remainingCreds := []webauthn.Credential{}
+	var remainingCreds []webauthn.Credential
 
 	// remove the requested credential from among the user's current webauthn credentials
 	for _, c := range u.Credentials {
@@ -300,7 +300,7 @@ func (u *DynamoUser) FinishRegistration(r *http.Request) (string, error) {
 		return "", fmt.Errorf("request Body may not be nil in FinishRegistration")
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		return "", fmt.Errorf("failed to get api config from request: %w", err)
 	}
@@ -335,7 +335,7 @@ func (u *DynamoUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 	if u.EncryptedAppId != "" {
 		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
 		if err != nil {
-			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
+			return nil, fmt.Errorf("unable to decrypt legacy app id: %w", err)
 		}
 		extensions["appid"] = string(appid)
 	}
@@ -361,17 +361,17 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		return nil, fmt.Errorf("request Body may not be nil in FinishLogin")
 	}
 
-	body, err := ioutil.ReadAll(r.Body)
+	body, err := io.ReadAll(r.Body)
 	if err != nil {
 		log.Printf("failed to read request body: %s", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to read request body: %w", err)
 	}
 
 	br := fixEncoding(body)
 	parsedResponse, err := protocol.ParseCredentialRequestResponseBody(br)
 	if err != nil {
 		logProtocolError(fmt.Sprintf("failed to parse credential request response body: %s", body), err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to parse credential request response body: %w", err)
 	}
 
 	// If user has registered U2F creds, check if RPIDHash is actually hash of AppId
@@ -379,10 +379,10 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	if u.EncryptedAppId != "" {
 		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
 		if err != nil {
-			return nil, fmt.Errorf("unable to decrypt legacy app id: %s", err)
+			return nil, fmt.Errorf("unable to decrypt legacy app id: %w", err)
 		}
 
-		appIdHash := sha256.Sum256([]byte(appid))
+		appIdHash := sha256.Sum256(appid)
 		rpIdHash := sha256.Sum256([]byte(u.WebAuthnClient.Config.RPID))
 
 		if fmt.Sprintf("%x", parsedResponse.Response.AuthenticatorData.RPIDHash) == fmt.Sprintf("%x", appIdHash) {
@@ -400,7 +400,7 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
 		logProtocolError("failed to validate login", err)
-		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %s", err)
+		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %w", err)
 	}
 
 	return credential, nil
@@ -428,70 +428,69 @@ func (u *DynamoUser) WebAuthnIcon() string {
 
 // WebAuthnCredentials returns an array of credentials (passkeys) plus a U2F credential if present
 func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
-	creds := u.Credentials
-
-	if u.EncryptedKeyHandle != "" && u.EncryptedPublicKey != "" {
-		credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
-		if err != nil {
-			log.Printf("unable to decrypt credential id: %s", err)
-			return nil
-		}
-
-		// decryption process includes extra/invalid \x00 character, so trim it out
-		// at some point early in dev this was needed, but in testing recently it doesn't
-		// make a difference. Leaving commented out for now until we know 100% it's not needed
-		// credId = bytes.Trim(credId, "\x00")
-
-		decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
-		if err != nil {
-			log.Println("error decoding credential id:", err)
-			return nil
-		}
-
-		pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
-		if err != nil {
-			log.Printf("unable to decrypt pubic key: %s", err)
-			return nil
-		}
-		// Same as credId
-		// pubKey = bytes.Trim(pubKey, "\x00")
-
-		decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
-		if err != nil {
-			log.Println("error decoding public key:", err)
-			return nil
-		}
-
-		// U2F key is concatenation of 0x4 + Xcoord + Ycoord
-		// documentation / example at https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html
-		coordLen := (len(decodedPubKey) - 1) / 2
-		xCoord := decodedPubKey[1 : coordLen+1]
-		yCoord := decodedPubKey[1+coordLen:]
-
-		ec2PublicKey := webauthncose.EC2PublicKeyData{
-			XCoord: xCoord,
-			YCoord: yCoord,
-			PublicKeyData: webauthncose.PublicKeyData{
-				Algorithm: int64(webauthncose.AlgES256),
-				KeyType:   int64(webauthncose.EllipticKey),
-			},
-		}
-
-		// Get the CBOR-encoded representation of the OKPPublicKeyData
-		cborEncodedKey, err := cbor.Marshal(ec2PublicKey)
-		if err != nil {
-			log.Printf("error marshalling key to cbor: %s", err)
-			return nil
-		}
-
-		creds = append(creds, webauthn.Credential{
-			ID:              decodedCredId,
-			PublicKey:       cborEncodedKey,
-			AttestationType: string(protocol.PublicKeyCredentialType),
-		})
+	if u.EncryptedKeyHandle == "" || u.EncryptedPublicKey == "" {
+		// no U2F credential found
+		return u.Credentials
 	}
 
-	return creds
+	credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
+	if err != nil {
+		log.Printf("unable to decrypt credential id: %s", err)
+		return nil
+	}
+
+	// decryption process includes extra/invalid \x00 character, so trim it out
+	// at some point early in dev this was needed, but in testing recently it doesn't
+	// make a difference. Leaving commented out for now until we know 100% it's not needed
+	// credId = bytes.Trim(credId, "\x00")
+
+	decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
+	if err != nil {
+		log.Println("error decoding credential id:", err)
+		return nil
+	}
+
+	pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
+	if err != nil {
+		log.Printf("unable to decrypt pubic key: %s", err)
+		return nil
+	}
+	// Same as credId
+	// pubKey = bytes.Trim(pubKey, "\x00")
+
+	decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
+	if err != nil {
+		log.Println("error decoding public key:", err)
+		return nil
+	}
+
+	// U2F key is concatenation of 0x4 + Xcoord + Ycoord
+	// documentation / example at https://docs.yubico.com/yesdk/users-manual/application-piv/attestation.html
+	coordLen := (len(decodedPubKey) - 1) / 2
+	xCoord := decodedPubKey[1 : coordLen+1]
+	yCoord := decodedPubKey[1+coordLen:]
+
+	ec2PublicKey := webauthncose.EC2PublicKeyData{
+		XCoord: xCoord,
+		YCoord: yCoord,
+		PublicKeyData: webauthncose.PublicKeyData{
+			Algorithm: int64(webauthncose.AlgES256),
+			KeyType:   int64(webauthncose.EllipticKey),
+		},
+	}
+
+	// Get the CBOR-encoded representation of the OKPPublicKeyData
+	cborEncodedKey, err := cbor.Marshal(ec2PublicKey)
+	if err != nil {
+		log.Printf("error marshalling key to cbor: %s", err)
+		return nil
+	}
+
+	return append(u.Credentials, webauthn.Credential{
+		ID:              decodedCredId,
+		PublicKey:       cborEncodedKey,
+		AttestationType: string(protocol.PublicKeyCredentialType),
+	})
 }
 
 // isNullByteSlice works around a bug in JSON unmarshalling for a URL-encoded Base64 string

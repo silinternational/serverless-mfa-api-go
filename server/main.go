@@ -21,7 +21,7 @@ func main() {
 
 	err := envconfig.Process("", &envConfig)
 	if err != nil {
-		log.Fatal(fmt.Errorf("error loading env vars: " + err.Error()))
+		log.Fatalf("error loading env vars: %s", err)
 	}
 	envConfig.InitAWS()
 	mfa.SetConfig(envConfig)
@@ -113,6 +113,6 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 		"RequestURI": r.RequestURI,
 	}
 	if err := json.NewEncoder(w).Encode(notFound); err != nil {
-		log.Printf("ERROR could not marshal not found message to JSON: %s", err.Error())
+		log.Printf("ERROR could not marshal not found message to JSON: %s", err)
 	}
 }

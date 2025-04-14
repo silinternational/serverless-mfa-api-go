@@ -25,11 +25,9 @@ type ApiMeta struct {
 	RPDisplayName   string `json:"RPDisplayName"` // Display Name for your site
 	RPID            string `json:"RPID"`          // Generally the FQDN for your site
 	RPOrigin        string `json:"RPOrigin"`      // The origin URL for WebAuthn requests
-	RPIcon          string `json:"RPIcon"`        // Optional icon URL for your site
 	UserUUID        string `json:"UserUUID"`
 	Username        string `json:"Username"`
 	UserDisplayName string `json:"UserDisplayName"`
-	UserIcon        string `json:"UserIcon"`
 }
 
 // beginRegistrationResponse adds uuid to response for consumers that depend on this api to generate the uuid
@@ -306,11 +304,9 @@ func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 		RPDisplayName:   r.Header.Get("x-mfa-RPDisplayName"),
 		RPID:            r.Header.Get("x-mfa-RPID"),
 		RPOrigin:        r.Header.Get("x-mfa-RPOrigin"),
-		RPIcon:          r.Header.Get("x-mfa-RPIcon"),
 		UserUUID:        r.Header.Get("x-mfa-UserUUID"),
 		Username:        r.Header.Get("x-mfa-Username"),
 		UserDisplayName: r.Header.Get("x-mfa-UserDisplayName"),
-		UserIcon:        r.Header.Get("x-mfa-UserIcon"),
 	}
 
 	// check that required fields are provided

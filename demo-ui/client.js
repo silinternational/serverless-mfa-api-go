@@ -41,11 +41,9 @@ const makeRequestHeaders = form => ({
         'x-mfa-RPDisplayName': "Demo Site",
         'x-mfa-RPID': window.psl.parse(window.location.hostname).domain,
         'x-mfa-RPOrigin': "https://"+window.psl.parse(window.location.hostname).subdomain + "." + window.psl.parse(window.location.hostname).domain,
-        'x-mfa-RPIcon': "",
         'x-mfa-UserUUID': form.userId.value,
         'x-mfa-Username': form.username.value ?? '',
         'x-mfa-UserDisplayName': form.userDisplayName.value ?? '',
-        'x-mfa-UserIcon': ""
 });
 
 const rejectIfNotOk = async response => {

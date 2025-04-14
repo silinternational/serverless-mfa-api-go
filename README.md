@@ -30,11 +30,6 @@ to do with WebAuthn, but is the primary key for finding the right records in Dyn
 7. `x-mfa-Username` - The user's username of your service
 8. `x-mfa-UserDisplayName` - The user's display name
 
-### Optional headers
-
-1. `x-mfa-Usericon` - 
-2. `x-mfa-Rpicon` -
-
 ### Begin Registration
 `POST /webauthn/register`
 

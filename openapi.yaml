@@ -43,12 +43,6 @@ components:
       schema:
         type: string
       example: https://sub.example.com
-    x-mfa-RPIcon:
-      in: header
-      name: x-mfa-RPIcon
-      description: Replying Party Icon
-      schema:
-        type: string
     x-mfa-UserUUID:
       in: header
       name: x-mfa-UserUUID
@@ -70,12 +64,6 @@ components:
       name: x-mfa-UserDisplayName
       description: The user's display name
       required: true
-      schema:
-        type: string
-    x-mfa-UserIcon:
-      in: header
-      name: x-mfa-UserIcon
-      description: User Icon
       schema:
         type: string
 
@@ -350,11 +338,9 @@ paths:
       - $ref: '#/components/headers/x-mfa-RPDisplayName'
       - $ref: '#/components/headers/x-mfa-RPID'
       - $ref: '#/components/headers/x-mfa-RPOrigin'
-      - $ref: '#/components/headers/x-mfa-RPIcon'
       - $ref: '#/components/headers/x-mfa-UserUUID'
       - $ref: '#/components/headers/x-mfa-Username'
       - $ref: '#/components/headers/x-mfa-UserDisplayName'
-      - $ref: '#/components/headers/x-mfa-UserIcon'
       responses:
         400:
           description: Bad Request
@@ -384,11 +370,9 @@ paths:
       - $ref: '#/components/headers/x-mfa-RPDisplayName'
       - $ref: '#/components/headers/x-mfa-RPID'
       - $ref: '#/components/headers/x-mfa-RPOrigin'
-      - $ref: '#/components/headers/x-mfa-RPIcon'
       - $ref: '#/components/headers/x-mfa-UserUUID'
       - $ref: '#/components/headers/x-mfa-Username'
       - $ref: '#/components/headers/x-mfa-UserDisplayName'
-      - $ref: '#/components/headers/x-mfa-UserIcon'
       requestBody:
         description: credential creation response
         required: true

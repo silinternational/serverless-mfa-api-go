@@ -64,7 +64,6 @@ func NewWebauthnUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey) Webauth
 		ID:          apiConfig.UserUUID,
 		Name:        apiConfig.Username,
 		DisplayName: apiConfig.UserDisplayName,
-		Icon:        apiConfig.UserIcon,
 		Store:       storage,
 		ApiKey:      apiKey,
 		ApiKeyValue: apiKey.Key,

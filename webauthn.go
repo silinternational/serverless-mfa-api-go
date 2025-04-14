@@ -18,16 +18,13 @@ import (
 
 const IDParam = "id"
 
-// ApiMeta holds metadata about the calling service for use in WebAuthn responses.
-// Since this service/api is consumed by multiple sources this information cannot
+// WebauthnMeta holds metadata about the calling service for use in WebAuthn responses.
+// Since this service/API is consumed by multiple sources this information cannot
 // be stored in the envConfig
-type ApiMeta struct {
-	RPDisplayName   string `json:"RPDisplayName"` // Display Name for your site
-	RPID            string `json:"RPID"`          // Generally the FQDN for your site
-	RPOrigin        string `json:"RPOrigin"`      // The origin URL for WebAuthn requests
-	UserUUID        string `json:"UserUUID"`
-	Username        string `json:"Username"`
-	UserDisplayName string `json:"UserDisplayName"`
+type WebauthnMeta struct {
+	RPDisplayName string // Display Name for your site
+	RPID          string // Generally the FQDN for your site
+	RPOrigin      string // The origin URL for WebAuthn requests
 }
 
 // beginRegistrationResponse adds uuid to response for consumers that depend on this api to generate the uuid
@@ -269,13 +266,12 @@ func fixEncoding(content []byte) io.Reader {
 
 // getWebauthnClient creates a new webauthn client from the request metadata
 func getWebauthnClient(r *http.Request) (*webauthn.WebAuthn, error) {
-	// apiMeta includes info about the user and webauthn config
-	apiMeta, err := getApiMetaFromRequest(r)
+	meta, err := getWebauthnMetaFromRequest(r)
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
 	}
 
-	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
+	webAuthnClient, err := getWebAuthnFromMeta(meta)
 	if err != nil {
 		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
 	}
@@ -283,8 +279,8 @@ func getWebauthnClient(r *http.Request) (*webauthn.WebAuthn, error) {
 	return webAuthnClient, nil
 }
 
-// getWebAuthnFromApiMeta creates a new WebAuthn object from the metadata provided in a web request.
-func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
+// getWebAuthnFromMeta creates a new WebAuthn object from the metadata provided in a web request.
+func getWebAuthnFromMeta(meta WebauthnMeta) (*webauthn.WebAuthn, error) {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: meta.RPDisplayName,      // Display Name for your site
 		RPID:          meta.RPID,               // Generally the FQDN for your site
@@ -298,33 +294,20 @@ func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	return web, nil
 }
 
-// getApiMetaFromRequest creates an ApiMeta object from request headers, including basic validation checks.
-func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
-	meta := ApiMeta{
-		RPDisplayName:   r.Header.Get("x-mfa-RPDisplayName"),
-		RPID:            r.Header.Get("x-mfa-RPID"),
-		RPOrigin:        r.Header.Get("x-mfa-RPOrigin"),
-		UserUUID:        r.Header.Get("x-mfa-UserUUID"),
-		Username:        r.Header.Get("x-mfa-Username"),
-		UserDisplayName: r.Header.Get("x-mfa-UserDisplayName"),
+// getWebauthnMetaFromRequest creates a WebauthnMeta object from request headers and performs basic validation checks.
+func getWebauthnMetaFromRequest(r *http.Request) (WebauthnMeta, error) {
+	meta := WebauthnMeta{
+		RPDisplayName: r.Header.Get("x-mfa-RPDisplayName"),
+		RPID:          r.Header.Get("x-mfa-RPID"),
+		RPOrigin:      r.Header.Get("x-mfa-RPOrigin"),
 	}
 
 	// check that required fields are provided
 	if meta.RPDisplayName == "" {
-		msg := "missing required header: x-mfa-RPDisplayName"
-		return ApiMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, fmt.Errorf("missing required header: x-mfa-RPDisplayName")
 	}
 	if meta.RPID == "" {
-		msg := "missing required header: x-mfa-RPID"
-		return ApiMeta{}, fmt.Errorf(msg)
-	}
-	if meta.Username == "" {
-		msg := "missing required header: x-mfa-Username"
-		return ApiMeta{}, fmt.Errorf(msg)
-	}
-	if meta.UserDisplayName == "" {
-		msg := "missing required header: x-mfa-UserDisplayName"
-		return ApiMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, fmt.Errorf("missing required header: x-mfa-RPID")
 	}
 
 	return meta, nil
@@ -383,14 +366,13 @@ func AuthenticateRequest(r *http.Request) (*WebauthnUser, error) {
 		return nil, fmt.Errorf("invalid api secret for key %s", key)
 	}
 
-	// apiMeta includes info about the user and webauthn config
-	apiMeta, err := getApiMetaFromRequest(r)
+	meta, err := getUserMetaFromRequest(r)
 	if err != nil {
-		log.Printf("unable to retrieve API meta information from request: %s", err)
-		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
+		log.Printf("unable to retrieve user meta information from request: %s", err)
+		return nil, fmt.Errorf("unable to retrieve user meta information from request: %w", err)
 	}
 
-	user := NewWebauthnUser(apiMeta, localStorage, apiKey)
+	user := NewWebauthnUser(meta, localStorage, apiKey)
 
 	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
 	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {

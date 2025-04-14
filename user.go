@@ -58,8 +58,33 @@ type WebauthnUser struct {
 	Icon        string `dynamodbav:"-" json:"-"`
 }
 
+type UserMeta struct {
+	UserUUID        string
+	Username        string
+	UserDisplayName string
+}
+
+// getUserMetaFromRequest creates a UserMeta object from request headers and performs basic validation checks.
+func getUserMetaFromRequest(r *http.Request) (UserMeta, error) {
+	meta := UserMeta{
+		UserUUID:        r.Header.Get("x-mfa-UserUUID"),
+		Username:        r.Header.Get("x-mfa-Username"),
+		UserDisplayName: r.Header.Get("x-mfa-UserDisplayName"),
+	}
+
+	// check that required fields are provided
+	if meta.Username == "" {
+		return UserMeta{}, fmt.Errorf("missing required header: x-mfa-Username")
+	}
+	if meta.UserDisplayName == "" {
+		return UserMeta{}, fmt.Errorf("missing required header: x-mfa-UserDisplayName")
+	}
+
+	return meta, nil
+}
+
 // NewWebauthnUser creates a new WebauthnUser from API input data, a storage client and a Webauthn client.
-func NewWebauthnUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey) WebauthnUser {
+func NewWebauthnUser(apiConfig UserMeta, storage *Storage, apiKey ApiKey) WebauthnUser {
 	u := WebauthnUser{
 		ID:          apiConfig.UserUUID,
 		Name:        apiConfig.Username,

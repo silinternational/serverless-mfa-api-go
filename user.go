@@ -390,13 +390,6 @@ func (u *DynamoUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) 
 		}
 	}
 
-	// there is an issue with URLEncodeBase64.UnmarshalJSON and null values
-	// see https://github.com/duo-labs/webauthn/issues/69
-	// null byte sequence is []byte{158,233,101}
-	if isNullByteSlice(parsedResponse.Response.UserHandle) {
-		parsedResponse.Response.UserHandle = nil
-	}
-
 	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
 		logProtocolError("failed to validate login", err)
@@ -491,18 +484,6 @@ func (u *DynamoUser) WebAuthnCredentials() []webauthn.Credential {
 		PublicKey:       cborEncodedKey,
 		AttestationType: string(protocol.PublicKeyCredentialType),
 	})
-}
-
-// isNullByteSlice works around a bug in JSON unmarshalling for a URL-encoded Base64 string
-// (see https://github.com/duo-labs/webauthn/issues/69)
-func isNullByteSlice(slice []byte) bool {
-	if len(slice) != 3 {
-		return false
-	}
-	if slice[0] == 158 && slice[1] == 233 && slice[2] == 101 {
-		return true
-	}
-	return false
 }
 
 // hashAndEncodeKeyHandle returns the Base64 URL-encoded SHA256 hash of a byte slice to provide a hash of a key

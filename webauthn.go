@@ -38,15 +38,19 @@ type beginRegistrationResponse struct {
 	protocol.CredentialCreation
 }
 
+// finishRegistrationResponse contains the response data for the FinishRegistration endpoint
 type finishRegistrationResponse struct {
 	KeyHandleHash string `json:"key_handle_hash"`
 }
 
+// finishLoginResponse contains the response data for the FinishLogin endpoint
 type finishLoginResponse struct {
 	CredentialID  string `json:"credentialId"` // DEPRECATED, use KeyHandleHash instead
 	KeyHandleHash string `json:"key_handle_hash"`
 }
 
+// BeginRegistration processes the first half of the Webauthn Registration flow. It is the handler for the
+// "POST /webauthn/register" endpoint, initiated by the client when creation of a new passkey is requested.
 func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -60,7 +64,7 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 
 	options, err := user.BeginRegistration()
 	if err != nil {
-		jsonResponse(w, fmt.Sprintf("failed to begin registration: %s", err.Error()), http.StatusBadRequest)
+		jsonResponse(w, fmt.Sprintf("failed to begin registration: %s", err), http.StatusBadRequest)
 		return
 	}
 
@@ -72,6 +76,8 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, response, http.StatusOK)
 }
 
+// FinishRegistration processes the last half of the Webauthn Registration flow. It is the handler for the
+// "PUT /webauthn/register" endpoint, initiated by the client with information encrypted by the new private key.
 func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -92,6 +98,8 @@ func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, response, http.StatusOK) // Handle next steps
 }
 
+// BeginLogin processes the first half of the Webauthn Authentication flow. It is the handler for the
+// "POST /webauthn/login" endpoint, initiated by the client at the beginning of a login request.
 func BeginLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -110,6 +118,8 @@ func BeginLogin(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, options, http.StatusOK)
 }
 
+// FinishLogin processes the second half of the Webauthn Authentication flow. It is the handler for the
+// "PUT /webauthn/login" endpoint, initiated by the client with login data signed with the private key.
 func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -133,6 +143,8 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, resp, http.StatusOK)
 }
 
+// DeleteUser is the handler for the "DELETE /webauthn/user" endpoint. It removes a user and any stored passkeys owned
+// by the user.
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -150,6 +162,9 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, nil, http.StatusNoContent)
 }
 
+// DeleteCredential is the handler for the "DELETE /webauthn/credential/{credID}" endpoint. It removes a single
+// passkey identified by "credID", which is the key_handle_hash returned by the FinishRegistration endpoint, or "u2f"
+// if it is a legacy U2F credential.
 func DeleteCredential(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
@@ -175,14 +190,18 @@ func DeleteCredential(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, err, status)
 }
 
+// simpleError is a custom error type that can be JSON-encoded for API responses
 type simpleError struct {
 	Error string `json:"error"`
 }
 
+// newSimpleError creates a new simpleError from the given error
 func newSimpleError(err error) simpleError {
 	return simpleError{Error: err.Error()}
 }
 
+// jsonResponse encodes a body as JSON and writes it to the response. It sets the response Content-Type header to
+// "application/json".
 func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	var data interface{}
 	switch b := body.(type) {
@@ -192,12 +211,12 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 		data = body
 	}
 
-	jBody := []byte{}
+	var jBody []byte
 	var err error
 	if data != nil {
 		jBody, err = json.Marshal(data)
 		if err != nil {
-			log.Printf("failed to marshal response body to json: %s\n", err.Error())
+			log.Printf("failed to marshal response body to json: %s", err)
 			w.WriteHeader(http.StatusInternalServerError)
 			_, _ = w.Write([]byte("failed to marshal response body to json"))
 			return
@@ -208,10 +227,11 @@ func jsonResponse(w http.ResponseWriter, body interface{}, status int) {
 	w.WriteHeader(status)
 	_, err = w.Write(jBody)
 	if err != nil {
-		log.Printf("faild to write response in jsonResponse: %s\n", err)
+		log.Printf("failed to write response in jsonResponse: %s\n", err)
 	}
 }
 
+// fixStringEncoding converts a string from standard Base64 to Base64-URL
 func fixStringEncoding(content string) string {
 	content = strings.ReplaceAll(content, "+", "-")
 	content = strings.ReplaceAll(content, "/", "_")
@@ -219,11 +239,14 @@ func fixStringEncoding(content string) string {
 	return content
 }
 
+// fixEncoding converts a string from standard Base64 to Base64-URL as an io.Reader
 func fixEncoding(content []byte) io.Reader {
 	allStr := string(content)
 	return bytes.NewReader([]byte(fixStringEncoding(allStr)))
 }
 
+// getWebAuthnFromApiMeta creates a new WebAuthn object from the metadata provided in a web request. Typically used in
+// the API authentication phase, early in the handler or in a middleware.
 func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: meta.RPDisplayName,      // Display Name for your site
@@ -238,6 +261,8 @@ func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	return web, nil
 }
 
+// getApiMetaFromRequest creates an ApiMeta object from request headers, including basic validation checks. Used during
+// API authentication.
 func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 	meta := ApiMeta{
 		RPDisplayName:   r.Header.Get("x-mfa-RPDisplayName"),
@@ -271,16 +296,20 @@ func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 	return meta, nil
 }
 
-func getUserFromContext(r *http.Request) (*DynamoUser, error) {
-	user, ok := r.Context().Value(UserContextKey).(*DynamoUser)
+// getUserFromContext returns the authenticated WebauthnUser from the request context. The authentication middleware or
+// early handler processing inserts the authenticated user into the context for retrieval by this function.
+func getUserFromContext(r *http.Request) (*WebauthnUser, error) {
+	user, ok := r.Context().Value(UserContextKey).(*WebauthnUser)
 	if !ok {
-		return &DynamoUser{}, errors.New("unable to get user from request context")
+		return &WebauthnUser{}, errors.New("unable to get user from request context")
 	}
 
 	return user, nil
 }
 
-func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
+// AuthenticateRequest checks the provided API key against the keys stored in the database. If the key is active and
+// valid, a Webauthn client and WebauthnUser are created and stored in the request context.
+func AuthenticateRequest(r *http.Request) (*WebauthnUser, error) {
 	// get key and secret from headers
 	key := r.Header.Get("x-mfa-apikey")
 	secret := r.Header.Get("x-mfa-apisecret")
@@ -293,7 +322,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 
 	localStorage, err := NewStorage(envConfig.AWSConfig)
 	if err != nil {
-		return nil, fmt.Errorf("error initializing storage: %s", err.Error())
+		return nil, fmt.Errorf("error initializing storage: %w", err)
 	}
 
 	apiKey := ApiKey{
@@ -304,7 +333,7 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 
 	err = apiKey.Load()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load api key: %s", err.Error())
+		return nil, fmt.Errorf("failed to load api key: %w", err)
 	}
 
 	if apiKey.ActivatedAt == 0 {
@@ -313,27 +342,26 @@ func AuthenticateRequest(r *http.Request) (*DynamoUser, error) {
 
 	valid, err := apiKey.IsCorrect(secret)
 	if err != nil {
-		return nil, fmt.Errorf("failed to validate api key: %s", err.Error())
+		return nil, fmt.Errorf("failed to validate api key: %w", err)
 	}
 
 	if !valid {
-		return nil, fmt.Errorf("invalid api secret for key %s: %s", key, err.Error())
+		return nil, fmt.Errorf("invalid api secret for key %s", key)
 	}
 
 	// apiMeta includes info about the user and webauthn config
 	apiMeta, err := getApiMetaFromRequest(r)
 	if err != nil {
-		msg := fmt.Sprintf("unable to retrieve api meta information from request: %s", err.Error())
-		log.Println(msg)
-		return nil, fmt.Errorf(msg)
+		log.Printf("unable to retrieve API meta information from request: %s", err)
+		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
 	}
 
 	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
 	if err != nil {
-		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %s", err.Error())
+		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
 	}
 
-	user := NewDynamoUser(apiMeta, localStorage, apiKey, webAuthnClient)
+	user := NewWebauthnUser(apiMeta, localStorage, apiKey, webAuthnClient)
 
 	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
 	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {

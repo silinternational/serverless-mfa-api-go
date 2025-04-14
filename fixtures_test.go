@@ -38,7 +38,7 @@ func getDBConfig(ms *MfaSuite) baseTestConfig {
 	}
 }
 
-func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []DynamoUser {
+func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 	cred10 := webauthn.Credential{ID: []byte("C10")}
 	cred20 := webauthn.Credential{ID: []byte("C20")}
 	cred21 := webauthn.Credential{ID: []byte("C21")}
@@ -59,7 +59,7 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []DynamoUser {
 	apiKey2.Key = "1234567890123456"
 	apiKey2.Secret = "E286600E-3DBF-4C23-A0DA-9C55D448"
 
-	testUser0 := DynamoUser{
+	testUser0 := WebauthnUser{
 		ID:             apiKey0.Secret,
 		Name:           "Nancy_NoCredential",
 		DisplayName:    "Nancy NoCredential",
@@ -94,7 +94,7 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []DynamoUser {
 	testUser0.PublicKey = "somePublicKey"
 	testUser0.EncryptedPublicKey = "someEncryptedPublicKey"
 
-	for _, u := range []DynamoUser{testUser0, testUser1, testUser2} {
+	for _, u := range []WebauthnUser{testUser0, testUser1, testUser2} {
 		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
 	}
 
@@ -107,5 +107,5 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []DynamoUser {
 	ms.NoError(err, "failed to scan storage for new user entries")
 	ms.Equal(int32(3), results.Count, "Count:3", "initial data wasn't saved properly")
 
-	return []DynamoUser{testUser0, testUser1, testUser2}
+	return []WebauthnUser{testUser0, testUser1, testUser2}
 }

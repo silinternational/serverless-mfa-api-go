@@ -6,7 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -51,10 +51,10 @@ func getTestAssertionResponse(credID, authData, clientData, attestationObject st
 	}`)
 }
 
-func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 string, user *DynamoUser) *http.Request {
+func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 string, user *WebauthnUser) *http.Request {
 	assertResp := getTestAssertionResponse(credID1, authData1, clientData1, attestObject1)
 
-	body := ioutil.NopCloser(bytes.NewReader(assertResp))
+	body := io.NopCloser(bytes.NewReader(assertResp))
 
 	reqWithBody := &http.Request{Body: body}
 	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
@@ -137,7 +137,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	const userID = "12345678-1234-1234-1234-123456789012"
 	userIDEncoded := base64.StdEncoding.EncodeToString([]byte(userID))
 
-	userNoID := DynamoUser{
+	userNoID := WebauthnUser{
 		Name:           "Nelly_NoID",
 		DisplayName:    "Nelly NoID",
 		Store:          localStorage,
@@ -150,7 +150,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	ctxNoID := context.WithValue(reqNoID.Context(), UserContextKey, &userNoID)
 	reqNoID = *reqNoID.WithContext(ctxNoID)
 
-	testUser := DynamoUser{
+	testUser := WebauthnUser{
 		ID:             userID,
 		Name:           "Charlie_HasCredentials",
 		DisplayName:    "Charlie HasCredentials",
@@ -276,7 +276,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	const userID = "00345678-1234-1234-1234-123456789012"
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
-	testUser := DynamoUser{
+	testUser := WebauthnUser{
 		ID:             userID,
 		Name:           "Charlie_HasCredentials",
 		DisplayName:    "Charlie HasCredentials",
@@ -393,7 +393,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 			value := results.Items[0][`EncryptedCredentials`]
 			valueB, ok := value.(*types.AttributeValueMemberB)
 			ms.True(ok)
-			decoded, err := testUser.ApiKey.Decrypt(valueB.Value)
+			decoded, err := testUser.ApiKey.DecryptData(valueB.Value)
 			ms.NoError(err, "error decrypting EncryptedCredentials")
 
 			decoded = bytes.Trim(decoded, "\x00")
@@ -431,7 +431,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	ms.NoError(err, "failed creating new webAuthnClient for test")
 
 	// Just check one of the error conditions with this user
-	userNoCreds := DynamoUser{
+	userNoCreds := WebauthnUser{
 		ID:             "",
 		Name:           "Nelly_NoCredentials",
 		DisplayName:    "Nelly NoCredentials",
@@ -461,7 +461,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 		},
 	}
 
-	userWithCreds := DynamoUser{
+	userWithCreds := WebauthnUser{
 		ID:             userID,
 		Name:           "Charlie_HasCredentials",
 		DisplayName:    "Charlie HasCredentials",
@@ -607,7 +607,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 		},
 	}
 
-	userWithCreds := DynamoUser{
+	userWithCreds := WebauthnUser{
 		ID:             userID,
 		Name:           "Charlie_HasCredentials",
 		DisplayName:    "Charlie HasCredentials",
@@ -638,7 +638,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
           }
 		}`
 
-	body1 := ioutil.NopCloser(bytes.NewReader([]byte(assertionResponse1)))
+	body1 := io.NopCloser(bytes.NewReader([]byte(assertionResponse1)))
 	reqWithBody1 := http.Request{Body: body1}
 	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, &userWithCreds)
 	reqWithBody1 = *reqWithBody1.WithContext(ctxUserCred1)
@@ -660,7 +660,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
           }
 		}`
 
-	body2 := ioutil.NopCloser(bytes.NewReader([]byte(assertionResponse2)))
+	body2 := io.NopCloser(bytes.NewReader([]byte(assertionResponse2)))
 
 	reqWithBody2 := http.Request{Body: body2}
 	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, &userWithCreds)
@@ -800,7 +800,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 	users := getTestWebauthnUsers(ms, baseConfigs)
 	testUser0, testUser1, testUser2 := users[0], users[1], users[2]
 
-	for i, u := range []DynamoUser{testUser0, testUser1, testUser2} {
+	for i, u := range []WebauthnUser{testUser0, testUser1, testUser2} {
 		ms.NoError(u.ApiKey.Hash(), "error trying to hash apikey: %d", i)
 		ms.NoError(u.encryptAndStoreCredentials(), "failed updating test user")
 		ms.NoError(u.ApiKey.Store.Store(baseConfigs.EnvConfig.ApiKeyTable, u.ApiKey), "failed saving initial apikey")
@@ -823,7 +823,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 
 	tests := []struct {
 		name            string
-		user            DynamoUser
+		user            WebauthnUser
 		credID          string
 		wantErrContains string
 		wantStatus      int

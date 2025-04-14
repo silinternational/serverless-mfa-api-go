@@ -60,14 +60,13 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 	apiKey2.Secret = "E286600E-3DBF-4C23-A0DA-9C55D448"
 
 	testUser0 := WebauthnUser{
-		ID:             apiKey0.Secret,
-		Name:           "Nancy_NoCredential",
-		DisplayName:    "Nancy NoCredential",
-		Store:          config.Storage,
-		WebAuthnClient: config.WebAuthnClient,
-		ApiKey:         apiKey0,
-		ApiKeyValue:    apiKey0.Key,
-		Credentials:    []webauthn.Credential{},
+		ID:          apiKey0.Secret,
+		Name:        "Nancy_NoCredential",
+		DisplayName: "Nancy NoCredential",
+		Store:       config.Storage,
+		ApiKey:      apiKey0,
+		ApiKeyValue: apiKey0.Key,
+		Credentials: []webauthn.Credential{},
 	}
 
 	testUser1 := testUser0

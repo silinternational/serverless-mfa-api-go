@@ -62,7 +62,13 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 		user.ID = uuid.NewV4().String()
 	}
 
-	options, err := user.BeginRegistration()
+	client, err := getWebauthnClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	options, err := user.BeginRegistration(client)
 	if err != nil {
 		jsonResponse(w, fmt.Sprintf("failed to begin registration: %s", err), http.StatusBadRequest)
 		return
@@ -85,7 +91,12 @@ func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	keyHandleHash, err := user.FinishRegistration(r)
+	client, err := getWebauthnClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
+	}
+
+	keyHandleHash, err := user.FinishRegistration(r, client)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		return
@@ -108,7 +119,12 @@ func BeginLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	options, err := user.BeginLogin()
+	client, err := getWebauthnClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
+		return
+	}
+	options, err := user.BeginLogin(client)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error beginning user login: %s\n", err)
@@ -128,7 +144,12 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	credential, err := user.FinishLogin(r)
+	client, err := getWebauthnClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
+	}
+
+	credential, err := user.FinishLogin(r, client)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error finishing user login	: %s\n", err)
@@ -245,8 +266,23 @@ func fixEncoding(content []byte) io.Reader {
 	return bytes.NewReader([]byte(fixStringEncoding(allStr)))
 }
 
-// getWebAuthnFromApiMeta creates a new WebAuthn object from the metadata provided in a web request. Typically used in
-// the API authentication phase, early in the handler or in a middleware.
+// getWebauthnClient creates a new webauthn client from the request metadata
+func getWebauthnClient(r *http.Request) (*webauthn.WebAuthn, error) {
+	// apiMeta includes info about the user and webauthn config
+	apiMeta, err := getApiMetaFromRequest(r)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
+	}
+
+	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
+	}
+
+	return webAuthnClient, nil
+}
+
+// getWebAuthnFromApiMeta creates a new WebAuthn object from the metadata provided in a web request.
 func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: meta.RPDisplayName,      // Display Name for your site
@@ -261,8 +297,7 @@ func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	return web, nil
 }
 
-// getApiMetaFromRequest creates an ApiMeta object from request headers, including basic validation checks. Used during
-// API authentication.
+// getApiMetaFromRequest creates an ApiMeta object from request headers, including basic validation checks.
 func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 	meta := ApiMeta{
 		RPDisplayName:   r.Header.Get("x-mfa-RPDisplayName"),
@@ -356,12 +391,7 @@ func AuthenticateRequest(r *http.Request) (*WebauthnUser, error) {
 		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
 	}
 
-	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
-	}
-
-	user := NewWebauthnUser(apiMeta, localStorage, apiKey, webAuthnClient)
+	user := NewWebauthnUser(apiMeta, localStorage, apiKey)
 
 	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
 	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {

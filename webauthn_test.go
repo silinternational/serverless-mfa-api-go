@@ -59,6 +59,8 @@ func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 stri
 	reqWithBody := &http.Request{Body: body}
 	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
 	reqWithBody = reqWithBody.WithContext(ctxWithUser)
+
+	reqWithBody.Header = requestHeaders()
 	return reqWithBody
 }
 
@@ -125,25 +127,15 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 		Store:  localStorage,
 	}
 
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName",   // Display Name for your site
-		RPID:          "111.11.11.11", // Generally the FQDN for your site
-		Debug:         true,
-		RPOrigins:     []string{testRpOrigin},
-	})
-
-	ms.NoError(err, "failed creating new webAuthnClient for test")
-
 	const userID = "12345678-1234-1234-1234-123456789012"
 	userIDEncoded := base64.StdEncoding.EncodeToString([]byte(userID))
 
 	userNoID := WebauthnUser{
-		Name:           "Nelly_NoID",
-		DisplayName:    "Nelly NoID",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
+		Name:        "Nelly_NoID",
+		DisplayName: "Nelly NoID",
+		Store:       localStorage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
 	}
 
 	reqNoID := http.Request{}
@@ -151,13 +143,12 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	reqNoID = *reqNoID.WithContext(ctxNoID)
 
 	testUser := WebauthnUser{
-		ID:             userID,
-		Name:           "Charlie_HasCredentials",
-		DisplayName:    "Charlie HasCredentials",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
+		ID:          userID,
+		Name:        "Charlie_HasCredentials",
+		DisplayName: "Charlie HasCredentials",
+		Store:       localStorage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
 	}
 
 	reqWithUserID := http.Request{}
@@ -179,7 +170,6 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			httpReq:    http.Request{},
 			wantBodyContains: []string{
 				`"error":"unable to get user from request context"`,
-				`missing WebAuthClient in BeginRegistration`,
 			},
 		},
 		{
@@ -188,7 +178,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			httpReq:    reqNoID,
 			wantBodyContains: []string{
 				`"uuid":"`,
-				`"id":"111.11.11.11"`,
+				`"id":"http://localhost"`,
 				`"name":"TestRPName"`,
 				`"publicKey":{`,
 			},
@@ -205,7 +195,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			httpReq:    reqWithUserID,
 			wantBodyContains: []string{
 				`"uuid":"` + userID,
-				`"id":"111.11.11.11"`,
+				`"id":"http://localhost"`,
 				`"name":"TestRPName"`,
 				`"publicKey":{`,
 				`"id":"` + string(userIDEncoded),
@@ -225,6 +215,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	}
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
+			tt.httpReq.Header = requestHeaders()
 			BeginRegistration(tt.httpWriter, &tt.httpReq)
 
 			gotBody := string(tt.httpWriter.Body)
@@ -264,26 +255,16 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 		Store:  localStorage,
 	}
 
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName", // Display Name for your site
-		RPID:          localAppID,   // Generally the FQDN for your site
-		RPOrigins:     []string{testRpOrigin},
-		Debug:         true,
-	})
-
-	ms.NoError(err, "failed creating new webAuthnClient for test")
-
 	const userID = "00345678-1234-1234-1234-123456789012"
 	const challenge = "W8GzFU8pGjhoRbWrLDlamAfq_y4S1CZG1VuoeRLARrE"
 
 	testUser := WebauthnUser{
-		ID:             userID,
-		Name:           "Charlie_HasCredentials",
-		DisplayName:    "Charlie HasCredentials",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
+		ID:          userID,
+		Name:        "Charlie_HasCredentials",
+		DisplayName: "Charlie HasCredentials",
+		Store:       localStorage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
 		SessionData: webauthn.SessionData{
 			UserID:    []byte(userID),
 			Challenge: challenge,
@@ -291,6 +272,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	}
 
 	reqNoBody := http.Request{}
+	reqNoBody.Header = requestHeaders()
 	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
@@ -421,24 +403,14 @@ func (ms *MfaSuite) Test_BeginLogin() {
 		Store:  localStorage,
 	}
 
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName",   // Display Name for your site
-		RPID:          "111.11.11.11", // Generally the FQDN for your site
-		Debug:         true,
-		RPOrigins:     []string{testRpOrigin},
-	})
-
-	ms.NoError(err, "failed creating new webAuthnClient for test")
-
 	// Just check one of the error conditions with this user
 	userNoCreds := WebauthnUser{
-		ID:             "",
-		Name:           "Nelly_NoCredentials",
-		DisplayName:    "Nelly NoCredentials",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
+		ID:          "",
+		Name:        "Nelly_NoCredentials",
+		DisplayName: "Nelly NoCredentials",
+		Store:       localStorage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
 	}
 
 	const userID = "00345678-1234-1234-1234-123456789012"
@@ -462,14 +434,13 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	}
 
 	userWithCreds := WebauthnUser{
-		ID:             userID,
-		Name:           "Charlie_HasCredentials",
-		DisplayName:    "Charlie HasCredentials",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
-		Credentials:    creds,
+		ID:          userID,
+		Name:        "Charlie_HasCredentials",
+		DisplayName: "Charlie HasCredentials",
+		Store:       localStorage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
+		Credentials: creds,
 	}
 
 	reqNoCredentials := http.Request{}
@@ -506,7 +477,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 			httpWriter: newLambdaResponseWriter(),
 			httpReq:    reqWithCredentials,
 			wantBodyContains: []string{
-				`"rpId":"111.11.11.11"`,
+				`"rpId":"http://localhost"`,
 				`{"publicKey":{"challenge":`,
 				`"allowCredentials":[{"type":"public-key","id":"`,
 				`"id":"` + string(credIDEncoded1),
@@ -523,6 +494,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	}
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
+			tt.httpReq.Header = requestHeaders()
 			BeginLogin(tt.httpWriter, &tt.httpReq)
 
 			gotBody := string(tt.httpWriter.Body)
@@ -560,13 +532,6 @@ func (ms *MfaSuite) Test_FinishLogin() {
 		Secret: apiKeySec,
 		Store:  localStorage,
 	}
-
-	web, err := webauthn.New(&webauthn.Config{
-		RPDisplayName: "TestRPName", // Display Name for your site
-		RPID:          localAppID,   // Generally the FQDN for your site
-		RPOrigins:     []string{testRpOrigin},
-		Debug:         true,
-	})
 
 	ms.NoError(err, "failed creating new webAuthnClient for test")
 
@@ -608,13 +573,12 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	}
 
 	userWithCreds := WebauthnUser{
-		ID:             userID,
-		Name:           "Charlie_HasCredentials",
-		DisplayName:    "Charlie HasCredentials",
-		Store:          localStorage,
-		WebAuthnClient: web,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
+		ID:          userID,
+		Name:        "Charlie_HasCredentials",
+		DisplayName: "Charlie HasCredentials",
+		Store:       localStorage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
 		SessionData: webauthn.SessionData{
 			UserID:     []byte(userID),
 			Challenge:  challenge,
@@ -698,6 +662,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
 			httpWriter := newLambdaResponseWriter()
+			tt.httpReq.Header = requestHeaders()
 			FinishLogin(httpWriter, &tt.httpReq)
 
 			gotBody := string(httpWriter.Body)
@@ -916,4 +881,14 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			}
 		})
 	}
+}
+
+func requestHeaders() http.Header {
+	headers := http.Header{}
+	headers.Set("x-mfa-RPDisplayName", "TestRPName")
+	headers.Set("x-mfa-RPID", "http://localhost")
+	headers.Set("x-mfa-RPOrigin", testRpOrigin)
+	headers.Set("x-mfa-Username", "username")
+	headers.Set("x-mfa-UserDisplayName", "display name")
+	return headers
 }

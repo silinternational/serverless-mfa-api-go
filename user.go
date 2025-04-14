@@ -53,23 +53,21 @@ type WebauthnUser struct {
 	Credentials          []webauthn.Credential `dynamodbav:"-" json:"-"`
 	EncryptedCredentials []byte                `dynamodbav:"EncryptedCredentials" json:"EncryptedCredentials,omitempty"`
 
-	WebAuthnClient *webauthn.WebAuthn `dynamodbav:"-" json:"-"`
-	Name           string             `dynamodbav:"-" json:"-"`
-	DisplayName    string             `dynamodbav:"-" json:"-"`
-	Icon           string             `dynamodbav:"-" json:"-"`
+	Name        string `dynamodbav:"-" json:"-"`
+	DisplayName string `dynamodbav:"-" json:"-"`
+	Icon        string `dynamodbav:"-" json:"-"`
 }
 
 // NewWebauthnUser creates a new WebauthnUser from API input data, a storage client and a Webauthn client.
-func NewWebauthnUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) WebauthnUser {
+func NewWebauthnUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey) WebauthnUser {
 	u := WebauthnUser{
-		ID:             apiConfig.UserUUID,
-		Name:           apiConfig.Username,
-		DisplayName:    apiConfig.UserDisplayName,
-		Icon:           apiConfig.UserIcon,
-		Store:          storage,
-		WebAuthnClient: webAuthnClient,
-		ApiKey:         apiKey,
-		ApiKeyValue:    apiKey.Key,
+		ID:          apiConfig.UserUUID,
+		Name:        apiConfig.Username,
+		DisplayName: apiConfig.UserDisplayName,
+		Icon:        apiConfig.UserIcon,
+		Store:       storage,
+		ApiKey:      apiKey,
+		ApiKeyValue: apiKey.Key,
 	}
 
 	if u.ID == "" {
@@ -268,18 +266,14 @@ func (u *WebauthnUser) Delete() error {
 
 // BeginRegistration processes the first half of the Webauthn Registration flow for the user and returns the
 // CredentialCreation data to pass back to the client. User session data is saved in the database.
-func (u *WebauthnUser) BeginRegistration() (*protocol.CredentialCreation, error) {
-	if u.WebAuthnClient == nil {
-		return nil, fmt.Errorf("webauthnUser, %s, missing WebAuthClient in BeginRegistration", u.Name)
-	}
-
+func (u *WebauthnUser) BeginRegistration(client *webauthn.WebAuthn) (*protocol.CredentialCreation, error) {
 	rrk := false
 	authSelection := protocol.AuthenticatorSelection{
 		RequireResidentKey: &rrk,
 		UserVerification:   protocol.VerificationDiscouraged,
 	}
 
-	options, sessionData, err := u.WebAuthnClient.BeginRegistration(u, webauthn.WithAuthenticatorSelection(authSelection))
+	options, sessionData, err := client.BeginRegistration(u, webauthn.WithAuthenticatorSelection(authSelection))
 	if err != nil {
 		return &protocol.CredentialCreation{}, fmt.Errorf("failed to begin registration: %w", err)
 	}
@@ -295,7 +289,7 @@ func (u *WebauthnUser) BeginRegistration() (*protocol.CredentialCreation, error)
 // FinishRegistration processes the last half of the Webauthn Registration flow for the user and returns the
 // key_handle_hash to pass back to the client. The client should store this value for later use. User session data is
 // cleared from the database.
-func (u *WebauthnUser) FinishRegistration(r *http.Request) (string, error) {
+func (u *WebauthnUser) FinishRegistration(r *http.Request, client *webauthn.WebAuthn) (string, error) {
 	if r.Body == nil {
 		return "", fmt.Errorf("request Body may not be nil in FinishRegistration")
 	}
@@ -312,7 +306,7 @@ func (u *WebauthnUser) FinishRegistration(r *http.Request) (string, error) {
 		return "", fmt.Errorf("unable to parse credential creation response body: %w", err)
 	}
 
-	credential, err := u.WebAuthnClient.CreateCredential(u, u.SessionData, parsedResponse)
+	credential, err := client.CreateCredential(u, u.SessionData, parsedResponse)
 	if err != nil {
 		logProtocolError("unable to create credential", err)
 		return "", fmt.Errorf("unable to create credential: %w", err)
@@ -330,7 +324,7 @@ func (u *WebauthnUser) FinishRegistration(r *http.Request) (string, error) {
 
 // BeginLogin processes the first half of the Webauthn Authentication flow for the user and returns the
 // CredentialAssertion data to pass back to the client. User session data is saved in the database.
-func (u *WebauthnUser) BeginLogin() (*protocol.CredentialAssertion, error) {
+func (u *WebauthnUser) BeginLogin(client *webauthn.WebAuthn) (*protocol.CredentialAssertion, error) {
 	extensions := protocol.AuthenticationExtensions{}
 	if u.EncryptedAppId != "" {
 		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
@@ -340,7 +334,7 @@ func (u *WebauthnUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 		extensions["appid"] = string(appid)
 	}
 
-	options, sessionData, err := u.WebAuthnClient.BeginLogin(u, webauthn.WithAssertionExtensions(extensions), webauthn.WithUserVerification(protocol.VerificationDiscouraged))
+	options, sessionData, err := client.BeginLogin(u, webauthn.WithAssertionExtensions(extensions), webauthn.WithUserVerification(protocol.VerificationDiscouraged))
 	if err != nil {
 		return &protocol.CredentialAssertion{}, err
 	}
@@ -356,7 +350,7 @@ func (u *WebauthnUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 
 // FinishLogin processes the last half of the Webauthn Authentication flow for the user and returns the
 // Credential data to pass back to the client. User session data is untouched by this function.
-func (u *WebauthnUser) FinishLogin(r *http.Request) (*webauthn.Credential, error) {
+func (u *WebauthnUser) FinishLogin(r *http.Request, client *webauthn.WebAuthn) (*webauthn.Credential, error) {
 	if r.Body == nil {
 		return nil, fmt.Errorf("request Body may not be nil in FinishLogin")
 	}
@@ -383,14 +377,14 @@ func (u *WebauthnUser) FinishLogin(r *http.Request) (*webauthn.Credential, error
 		}
 
 		appIdHash := sha256.Sum256(appid)
-		rpIdHash := sha256.Sum256([]byte(u.WebAuthnClient.Config.RPID))
+		rpIdHash := sha256.Sum256([]byte(client.Config.RPID))
 
 		if fmt.Sprintf("%x", parsedResponse.Response.AuthenticatorData.RPIDHash) == fmt.Sprintf("%x", appIdHash) {
 			parsedResponse.Response.AuthenticatorData.RPIDHash = rpIdHash[:]
 		}
 	}
 
-	credential, err := u.WebAuthnClient.ValidateLogin(u, u.SessionData, parsedResponse)
+	credential, err := client.ValidateLogin(u, u.SessionData, parsedResponse)
 	if err != nil {
 		logProtocolError("failed to validate login", err)
 		return &webauthn.Credential{}, fmt.Errorf("failed to validate login: %w", err)

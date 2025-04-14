@@ -55,6 +55,7 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getUserFromContext(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
+		return
 	}
 
 	// If user.id is empty, treat as new user/registration
@@ -94,6 +95,7 @@ func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 	client, err := getWebauthnClient(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusInternalServerError)
+		return
 	}
 
 	keyHandleHash, err := user.FinishRegistration(r, client)
@@ -147,6 +149,7 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 	client, err := getWebauthnClient(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusInternalServerError)
+		return
 	}
 
 	credential, err := user.FinishLogin(r, client)

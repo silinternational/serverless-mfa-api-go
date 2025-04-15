@@ -2,7 +2,6 @@ package mfa
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -15,10 +14,10 @@ import (
 	uuid "github.com/satori/go.uuid"
 )
 
-// ApiMeta holds metadata about the calling service for use in WebAuthn responses.
+// WebauthnMeta holds metadata about the calling service for use in WebAuthn responses.
 // Since this service/api is consumed by multiple sources this information cannot
 // be stored in the envConfig
-type ApiMeta struct {
+type WebauthnMeta struct {
 	RPDisplayName   string `json:"RPDisplayName"` // Display Name for your site
 	RPID            string `json:"RPID"`          // Generally the FQDN for your site
 	RPOrigin        string `json:"RPOrigin"`      // The origin URL for WebAuthn requests
@@ -49,9 +48,10 @@ type finishLoginResponse struct {
 // BeginRegistration processes the first half of the Webauthn Registration flow. It is the handler for the
 // "POST /webauthn/register" endpoint, initiated by the client when creation of a new passkey is requested.
 func BeginRegistration(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromContext(r)
+	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
+		return
 	}
 
 	// If user.id is empty, treat as new user/registration
@@ -76,7 +76,7 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 // FinishRegistration processes the last half of the Webauthn Registration flow. It is the handler for the
 // "PUT /webauthn/register" endpoint, initiated by the client with information encrypted by the new private key.
 func FinishRegistration(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromContext(r)
+	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		return
@@ -98,7 +98,7 @@ func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 // BeginLogin processes the first half of the Webauthn Authentication flow. It is the handler for the
 // "POST /webauthn/login" endpoint, initiated by the client at the beginning of a login request.
 func BeginLogin(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromContext(r)
+	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error getting user from context: %s\n", err)
@@ -118,7 +118,7 @@ func BeginLogin(w http.ResponseWriter, r *http.Request) {
 // FinishLogin processes the second half of the Webauthn Authentication flow. It is the handler for the
 // "PUT /webauthn/login" endpoint, initiated by the client with login data signed with the private key.
 func FinishLogin(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromContext(r)
+	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error getting user from context: %s\n", err)
@@ -143,7 +143,7 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 // DeleteUser is the handler for the "DELETE /webauthn/user" endpoint. It removes a user and any stored passkeys owned
 // by the user.
 func DeleteUser(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromContext(r)
+	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error getting user from context: %s\n", err)
@@ -163,7 +163,7 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 // passkey identified by "credID", which is the key_handle_hash returned by the FinishRegistration endpoint, or "u2f"
 // if it is a legacy U2F credential.
 func DeleteCredential(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromContext(r)
+	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
 		log.Printf("error getting user from context: %s\n", err)
@@ -203,7 +203,7 @@ func fixEncoding(content []byte) io.Reader {
 
 // getWebAuthnFromApiMeta creates a new WebAuthn object from the metadata provided in a web request. Typically used in
 // the API authentication phase, early in the handler or in a middleware.
-func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
+func getWebAuthnFromApiMeta(meta WebauthnMeta) (*webauthn.WebAuthn, error) {
 	web, err := webauthn.New(&webauthn.Config{
 		RPDisplayName: meta.RPDisplayName,      // Display Name for your site
 		RPID:          meta.RPID,               // Generally the FQDN for your site
@@ -217,10 +217,10 @@ func getWebAuthnFromApiMeta(meta ApiMeta) (*webauthn.WebAuthn, error) {
 	return web, nil
 }
 
-// getApiMetaFromRequest creates an ApiMeta object from request headers, including basic validation checks. Used during
+// getWebauthnMetaFromRequest creates an WebauthnMeta object from request headers, including basic validation checks. Used during
 // API authentication.
-func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
-	meta := ApiMeta{
+func getWebauthnMetaFromRequest(r *http.Request) (WebauthnMeta, error) {
+	meta := WebauthnMeta{
 		RPDisplayName:   r.Header.Get("x-mfa-RPDisplayName"),
 		RPID:            r.Header.Get("x-mfa-RPID"),
 		RPOrigin:        r.Header.Get("x-mfa-RPOrigin"),
@@ -234,31 +234,54 @@ func getApiMetaFromRequest(r *http.Request) (ApiMeta, error) {
 	// check that required fields are provided
 	if meta.RPDisplayName == "" {
 		msg := "missing required header: x-mfa-RPDisplayName"
-		return ApiMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, fmt.Errorf(msg)
 	}
 	if meta.RPID == "" {
 		msg := "missing required header: x-mfa-RPID"
-		return ApiMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, fmt.Errorf(msg)
 	}
 	if meta.Username == "" {
 		msg := "missing required header: x-mfa-Username"
-		return ApiMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, fmt.Errorf(msg)
 	}
 	if meta.UserDisplayName == "" {
 		msg := "missing required header: x-mfa-UserDisplayName"
-		return ApiMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, fmt.Errorf(msg)
 	}
 
 	return meta, nil
 }
 
-// getUserFromContext returns the authenticated WebauthnUser from the request context. The authentication middleware or
+// getWebauthnUser returns the authenticated WebauthnUser from the request context. The authentication middleware or
 // early handler processing inserts the authenticated user into the context for retrieval by this function.
-func getUserFromContext(r *http.Request) (*WebauthnUser, error) {
+func getWebauthnUser(r *http.Request) (*WebauthnUser, error) {
 	user, ok := r.Context().Value(UserContextKey).(*WebauthnUser)
 	if !ok {
-		return &WebauthnUser{}, errors.New("unable to get user from request context")
+		return &WebauthnUser{}, fmt.Errorf("unable to get user from request context")
 	}
 
 	return user, nil
+}
+
+func authWebauthnUser(r *http.Request, storage *Storage, apiKey ApiKey) (User, error) {
+	apiMeta, err := getWebauthnMetaFromRequest(r)
+	if err != nil {
+		log.Printf("unable to retrieve API meta information from request: %s", err)
+		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
+	}
+
+	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
+	}
+
+	user := NewWebauthnUser(apiMeta, storage, apiKey, webAuthnClient)
+
+	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
+	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {
+		log.Printf("api key %s tried to access user %s but that user does not belong to that api key", apiKey.Key, user.ID)
+		return nil, fmt.Errorf("user does not exist")
+	}
+
+	return &user, nil
 }

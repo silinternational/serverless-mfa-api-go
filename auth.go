@@ -4,11 +4,14 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 )
+
+type User interface{}
 
 // AuthenticateRequest checks the provided API key against the keys stored in the database. If the key is active and
 // valid, a Webauthn client and WebauthnUser are created and stored in the request context.
-func AuthenticateRequest(r *http.Request) (*WebauthnUser, error) {
+func AuthenticateRequest(r *http.Request) (User, error) {
 	// get key and secret from headers
 	key := r.Header.Get("x-mfa-apikey")
 	secret := r.Header.Get("x-mfa-apisecret")
@@ -48,25 +51,19 @@ func AuthenticateRequest(r *http.Request) (*WebauthnUser, error) {
 		return nil, fmt.Errorf("invalid api secret for key %s", key)
 	}
 
-	// apiMeta includes info about the user and webauthn config
-	apiMeta, err := getApiMetaFromRequest(r)
-	if err != nil {
-		log.Printf("unable to retrieve API meta information from request: %s", err)
-		return nil, fmt.Errorf("unable to retrieve API meta information from request: %w", err)
+	path := r.URL.Path
+	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	switch segments[0] {
+	case "webauthn":
+		return authWebauthnUser(r, localStorage, apiKey)
+
+	case "totp":
+		return nil, fmt.Errorf("TOTP is not yet supported")
+
+	case "api-key":
+		return nil, fmt.Errorf("key management is not yet supported")
+
+	default:
+		return nil, fmt.Errorf("invalid URL: %s", r.URL)
 	}
-
-	webAuthnClient, err := getWebAuthnFromApiMeta(apiMeta)
-	if err != nil {
-		return nil, fmt.Errorf("unable to create webauthn client from api meta config: %w", err)
-	}
-
-	user := NewWebauthnUser(apiMeta, localStorage, apiKey, webAuthnClient)
-
-	// If this user exists (api key value is not empty), make sure the calling API Key owns the user and is allowed to operate on it
-	if user.ApiKeyValue != "" && user.ApiKeyValue != apiKey.Key {
-		log.Printf("api key %s tried to access user %s but that user does not belong to that api key", apiKey.Key, user.ID)
-		return nil, fmt.Errorf("user does not exist")
-	}
-
-	return &user, nil
 }

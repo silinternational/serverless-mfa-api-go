@@ -179,7 +179,6 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			httpReq:    http.Request{},
 			wantBodyContains: []string{
 				`"error":"unable to get user from request context"`,
-				`missing WebAuthClient in BeginRegistration`,
 			},
 		},
 		{

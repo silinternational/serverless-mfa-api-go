@@ -254,10 +254,10 @@ func getWebauthnMetaFromRequest(r *http.Request) (WebauthnMeta, error) {
 
 // getWebauthnUser returns the authenticated WebauthnUser from the request context. The authentication middleware or
 // early handler processing inserts the authenticated user into the context for retrieval by this function.
-func getWebauthnUser(r *http.Request) (*WebauthnUser, error) {
-	user, ok := r.Context().Value(UserContextKey).(*WebauthnUser)
+func getWebauthnUser(r *http.Request) (WebauthnUser, error) {
+	user, ok := r.Context().Value(UserContextKey).(WebauthnUser)
 	if !ok {
-		return &WebauthnUser{}, fmt.Errorf("unable to get user from request context")
+		return WebauthnUser{}, fmt.Errorf("unable to get user from request context")
 	}
 
 	return user, nil
@@ -283,5 +283,5 @@ func authWebauthnUser(r *http.Request, storage *Storage, apiKey ApiKey) (User, e
 		return nil, fmt.Errorf("user does not exist")
 	}
 
-	return &user, nil
+	return user, nil
 }

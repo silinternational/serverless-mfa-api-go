@@ -479,7 +479,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	ctxWithUserCredentials := context.WithValue(reqWithCredentials.Context(), UserContextKey, userWithCreds)
 	reqWithCredentials = *reqWithCredentials.WithContext(ctxWithUserCredentials)
 
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUserCredentials)
+	localStorage.Store(envConfig.WebauthnTable, userWithCreds)
 
 	tests := []struct {
 		name             string

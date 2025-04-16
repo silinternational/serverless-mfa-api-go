@@ -1,11 +1,14 @@
 package mfa
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"strings"
 
@@ -149,4 +152,23 @@ func GetPublicKeyAsBytes(privateKey *ecdsa.PrivateKey) []byte {
 	buf = append(buf, pubKey.Y.Bytes()...)
 
 	return buf
+}
+
+func must(err error) {
+	if err != nil {
+		panic(err)
+	}
+}
+
+// requestWithUser creates a Request with a JSON body and a User in the Context
+func requestWithUser(body any, user User) *http.Request {
+	jsonBody, err := json.Marshal(body)
+	must(err)
+	req := &http.Request{Body: io.NopCloser(bytes.NewReader(jsonBody))}
+	ctx := context.WithValue(req.Context(), UserContextKey, user)
+
+	storage, err := NewStorage(testAwsConfig())
+	ctx = context.WithValue(ctx, StorageContextKey, storage)
+
+	return req.WithContext(ctx)
 }

@@ -103,11 +103,8 @@ func (u *WebauthnUser) unsetSessionData() error {
 // saveSessionData encrypts the user's session data and updates the database record.
 // CAUTION: user data is refreshed from the database by this function. Any unsaved data will be lost.
 func (u *WebauthnUser) saveSessionData(sessionData webauthn.SessionData) error {
-	// load to be sure working with latest data
-	err := u.Load()
-	if err != nil {
-		return err
-	}
+	// load to be sure working with latest data, but we may not have created the record yet (BeginRegistration)
+	_ = u.Load()
 
 	js, err := json.Marshal(sessionData)
 	if err != nil {

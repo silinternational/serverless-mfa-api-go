@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -44,44 +45,56 @@ type route struct {
 // Define our routes.
 var routes = []route{
 	{
-		"BeginRegistration",
-		"POST",
-		"/webauthn/register",
-		mfa.BeginRegistration,
+		Name:        "CreateApiKey",
+		Method:      "POST",
+		Pattern:     "/api-key",
+		HandlerFunc: mfa.CreateApiKey,
 	},
 	{
-		"FinishRegistration",
-		"PUT",
-		"/webauthn/register",
-		mfa.FinishRegistration,
+		Name:        "ActivateApiKey",
+		Method:      "POST",
+		Pattern:     "/api-key/activate",
+		HandlerFunc: mfa.ActivateApiKey,
 	},
 	{
-		"BeginLogin",
-		"POST",
-		"/webauthn/login",
-		mfa.BeginLogin,
+		Name:        "BeginRegistration",
+		Method:      "POST",
+		Pattern:     "/webauthn/register",
+		HandlerFunc: mfa.BeginRegistration,
 	},
 	{
-		"FinishLogin",
-		"PUT",
-		"/webauthn/login",
-		mfa.FinishLogin,
+		Name:        "FinishRegistration",
+		Method:      "PUT",
+		Pattern:     "/webauthn/register",
+		HandlerFunc: mfa.FinishRegistration,
 	},
 	{
-		"DeleteUser",
-		"DELETE",
-		"/webauthn/user",
-		mfa.DeleteUser,
+		Name:        "BeginLogin",
+		Method:      "POST",
+		Pattern:     "/webauthn/login",
+		HandlerFunc: mfa.BeginLogin,
+	},
+	{
+		Name:        "FinishLogin",
+		Method:      "PUT",
+		Pattern:     "/webauthn/login",
+		HandlerFunc: mfa.FinishLogin,
+	},
+	{
+		Name:        "DeleteUser",
+		Method:      "DELETE",
+		Pattern:     "/webauthn/user",
+		HandlerFunc: mfa.DeleteUser,
 	},
 	{ // This expects a path param that is the id that was previously returned
 		// as the key_handle_hash from the FinishRegistration call.
 		// Alternatively, if the id param indicates that a legacy U2F key should be removed
 		//	 (e.g. by matching the string "u2f")
 		//   then that user is saved with all of its legacy u2f fields blanked out.
-		"DeleteCredential",
-		"DELETE",
-		fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),
-		mfa.DeleteCredential,
+		Name:        "DeleteCredential",
+		Method:      "DELETE",
+		Pattern:     fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),
+		HandlerFunc: mfa.DeleteCredential,
 	},
 }
 
@@ -93,6 +106,9 @@ func newRouter() *mux.Router {
 	// authenticate request based on api key and secret in headers
 	// also adds user to context
 	router.Use(authenticationMiddleware)
+
+	// add storage client to the request context
+	router.Use(storageMiddleware)
 
 	// Assign the handlers to run when endpoints are called.
 	for _, route := range routes {
@@ -115,4 +131,17 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(notFound); err != nil {
 		log.Printf("ERROR could not marshal not found message to JSON: %s", err)
 	}
+}
+
+// storageMiddleware initializes a storage client and adds it to the request context
+func storageMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		storage, err := mfa.NewStorage(envConfig.AWSConfig)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("error initializing storage: %s", err), http.StatusInternalServerError)
+			return
+		}
+		ctx := context.WithValue(r.Context(), mfa.StorageContextKey, storage)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
 }

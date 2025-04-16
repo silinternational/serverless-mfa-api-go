@@ -57,7 +57,7 @@ func getTestAssertionRequest(credID1, authData1, clientData1, attestObject1 stri
 	body := io.NopCloser(bytes.NewReader(assertResp))
 
 	reqWithBody := &http.Request{Body: body}
-	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, user)
+	ctxWithUser := context.WithValue(reqWithBody.Context(), UserContextKey, *user)
 	reqWithBody = reqWithBody.WithContext(ctxWithUser)
 	return reqWithBody
 }
@@ -147,7 +147,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	}
 
 	reqNoID := http.Request{}
-	ctxNoID := context.WithValue(reqNoID.Context(), UserContextKey, &userNoID)
+	ctxNoID := context.WithValue(reqNoID.Context(), UserContextKey, userNoID)
 	reqNoID = *reqNoID.WithContext(ctxNoID)
 
 	testUser := WebauthnUser{
@@ -161,7 +161,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	}
 
 	reqWithUserID := http.Request{}
-	ctxWithUserID := context.WithValue(reqWithUserID.Context(), UserContextKey, &testUser)
+	ctxWithUserID := context.WithValue(reqWithUserID.Context(), UserContextKey, testUser)
 	reqWithUserID = *reqWithUserID.WithContext(ctxWithUserID)
 
 	localStorage.Store(envConfig.WebauthnTable, ctxWithUserID)
@@ -179,7 +179,6 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			httpReq:    http.Request{},
 			wantBodyContains: []string{
 				`"error":"unable to get user from request context"`,
-				`missing WebAuthClient in BeginRegistration`,
 			},
 		},
 		{
@@ -291,7 +290,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	}
 
 	reqNoBody := http.Request{}
-	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, &testUser)
+	ctxNoBody := context.WithValue(reqNoBody.Context(), UserContextKey, testUser)
 	reqNoBody = *reqNoBody.WithContext(ctxNoBody)
 
 	const credID = "dmlydEtleTExLTA"
@@ -473,11 +472,11 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	}
 
 	reqNoCredentials := http.Request{}
-	ctxWithUser := context.WithValue(reqNoCredentials.Context(), UserContextKey, &userNoCreds)
+	ctxWithUser := context.WithValue(reqNoCredentials.Context(), UserContextKey, userNoCreds)
 	reqNoCredentials = *reqNoCredentials.WithContext(ctxWithUser)
 
 	reqWithCredentials := http.Request{}
-	ctxWithUserCredentials := context.WithValue(reqWithCredentials.Context(), UserContextKey, &userWithCreds)
+	ctxWithUserCredentials := context.WithValue(reqWithCredentials.Context(), UserContextKey, userWithCreds)
 	reqWithCredentials = *reqWithCredentials.WithContext(ctxWithUserCredentials)
 
 	localStorage.Store(envConfig.WebauthnTable, ctxWithUserCredentials)
@@ -640,7 +639,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 
 	body1 := io.NopCloser(bytes.NewReader([]byte(assertionResponse1)))
 	reqWithBody1 := http.Request{Body: body1}
-	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, &userWithCreds)
+	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, userWithCreds)
 	reqWithBody1 = *reqWithBody1.WithContext(ctxUserCred1)
 
 	localStorage.Store(envConfig.WebauthnTable, ctxUserCred1)
@@ -663,7 +662,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	body2 := io.NopCloser(bytes.NewReader([]byte(assertionResponse2)))
 
 	reqWithBody2 := http.Request{Body: body2}
-	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, &userWithCreds)
+	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, userWithCreds)
 	reqWithBody2 = *reqWithBody2.WithContext(ctxUserCred2)
 
 	localStorage.Store(envConfig.WebauthnTable, ctxUserCred2)
@@ -875,7 +874,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			request.Header.Set("x-mfa-Username", tt.user.Name)
 			request.Header.Set("x-mfa-UserDisplayName", tt.user.DisplayName)
 
-			ctxWithUser := context.WithValue(request.Context(), UserContextKey, &tt.user)
+			ctxWithUser := context.WithValue(request.Context(), UserContextKey, tt.user)
 			request = request.WithContext(ctxWithUser)
 			baseConfigs.Storage.Store(baseConfigs.EnvConfig.WebauthnTable, ctxWithUser)
 

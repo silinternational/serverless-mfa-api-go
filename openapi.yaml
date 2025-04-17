@@ -342,6 +342,104 @@ components:
       required:
       - error
 paths:
+  /api-key:
+    post:
+      operationId: createApiKey
+      summary: Create API Key
+      description: >
+        Create a new API key for access to other endpoints. All other endpoints use API keys to encrypt and decrypt
+        data. Consequently, no existing data can be read by an API key created after the creation of that data. Keys
+        are not usable until activated using the POST /api-key/activate endpoint
+      requestBody:
+        description: request body for CreateAPIKey request
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                email:
+                  type: string
+                  description: email address of the requester
+                  required: true
+                  example: email@example.com
+      responses:
+        204:
+          description: New API key created
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                invalid-input:
+                  value:
+                    error: "invalid request: invalid character ',' looking for beginning of value"
+                email-required:
+                  value:
+                    error: "email is required"
+  /api-key/activate:
+    post:
+      operationId: activateApiKey
+      summary: Activate API Key
+      description: >
+        Activate a new API key for access to other endpoints. Keys cannot be used before activation.
+      requestBody:
+        description: request body for ApiKeyActivate request
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKeyValue:
+                  type: string
+                  description: email address of the requester
+                  required: true
+                  example: 0123456789012345678901234567890123456789
+                email:
+                  type: string
+                  description: email address of the requester
+                  required: true
+                  example: email@example.com
+      responses:
+        200:
+          description: New API key created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiSecret:
+                    type: string
+                    description: >
+                      a random string associated with the key, when paired with the key value can be used to
+                      authenticate against API endpoints
+                    required: true
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                invalid-input:
+                  value:
+                    error: "invalid request: invalid character ',' looking for beginning of value"
+                email-required:
+                  value:
+                    error: "email is required"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                not-found:
+                  value:
+                    error: "key not found: item does not exist: 0123456789012345678901234567890123456789"
   /webauthn/register:
     post:
       summary: Begin Registration

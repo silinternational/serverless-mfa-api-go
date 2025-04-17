@@ -1,6 +1,8 @@
 package mfa
 
 import (
+	"bytes"
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -25,4 +27,11 @@ func Test_MfaSuite(t *testing.T) {
 	ms := &MfaSuite{}
 
 	suite.Run(t, ms)
+}
+
+func (ms *MfaSuite) decodeBody(body []byte, v any) {
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	ms.NoError(decoder.Decode(v))
+	ms.False(decoder.More())
 }

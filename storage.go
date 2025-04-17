@@ -11,6 +11,8 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
+const StorageContextKey = "storage"
+
 // Storage provides wrapper methods for interacting with DynamoDB
 type Storage struct {
 	client *dynamodb.Client
@@ -70,6 +72,10 @@ func (s *Storage) Load(table, attrName, attrVal string, item interface{}) error 
 	result, err := s.client.GetItem(ctx, input)
 	if err != nil {
 		return err
+	}
+
+	if result.Item == nil {
+		return errors.New("item does not exist: " + attrVal)
 	}
 
 	return attributevalue.UnmarshalMap(result.Item, item)

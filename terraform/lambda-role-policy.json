@@ -32,7 +32,8 @@
         "dynamodb:DescribeTable",
         "dynamodb:Query",
         "dynamodb:Scan",
-        "dynamodb:GetItem"
+        "dynamodb:GetItem",
+        "dynamodb:PutItem"
       ],
       "Resource": [
         "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}"

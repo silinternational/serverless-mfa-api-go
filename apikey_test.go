@@ -303,7 +303,7 @@ func (ms *MfaSuite) TestCreateApiKey() {
 			req := requestWithUser(tt.body, ApiKey{Store: localStorage})
 			CreateApiKey(res, req)
 
-			if tt.wantStatus != http.StatusOK {
+			if tt.wantError != "" {
 				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("response: %s", res.Body))
 				var se simpleError
 				ms.decodeBody(res.Body, &se)
@@ -311,7 +311,7 @@ func (ms *MfaSuite) TestCreateApiKey() {
 				return
 			}
 
-			ms.Equal(http.StatusOK, res.Status, fmt.Sprintf("response: %s", res.Body))
+			ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("response: %s", res.Body))
 		})
 	}
 }

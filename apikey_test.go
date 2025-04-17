@@ -288,7 +288,7 @@ func (ms *MfaSuite) TestCreateApiKey() {
 			body: map[string]interface{}{
 				"email": "email@example.com",
 			},
-			wantStatus: http.StatusOK,
+			wantStatus: http.StatusNoContent,
 		},
 		{
 			name:       "missing email",

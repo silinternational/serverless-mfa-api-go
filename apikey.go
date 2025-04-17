@@ -286,7 +286,7 @@ func CreateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonResponse(w, nil, http.StatusOK)
+	jsonResponse(w, nil, http.StatusNoContent)
 }
 
 // NewApiKey creates a new key with a random value

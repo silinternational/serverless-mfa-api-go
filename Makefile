@@ -12,6 +12,7 @@ app:
 	docker compose rm -f app
 	docker compose up -d app
 
+# test depends on db, but not dbinit because the test suite does its own init (creating tables, etc.)
 test: clean db
 	docker compose run --rm app go test ./...
 

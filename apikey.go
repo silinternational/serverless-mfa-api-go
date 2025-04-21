@@ -108,7 +108,7 @@ func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
 
 	// plaintext will hold decrypted content, it must be at least as long
 	// as ciphertext or decryption process will panic
-	plaintext := make([]byte, len(ciphertext))
+	plaintext := make([]byte, len(ciphertext)-aes.BlockSize)
 
 	// get iv from encrypted content
 	iv := ciphertext[:aes.BlockSize]

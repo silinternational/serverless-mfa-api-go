@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -141,6 +142,7 @@ func httpRequestFromProxyRequest(ctx context.Context, req events.APIGatewayProxy
 	for k, v := range req.Headers {
 		headers.Set(k, v)
 	}
+	requestURL, _ := url.Parse(req.Path)
 	r := &http.Request{
 		Method:        req.HTTPMethod,
 		ProtoMinor:    0,
@@ -149,6 +151,7 @@ func httpRequestFromProxyRequest(ctx context.Context, req events.APIGatewayProxy
 		ContentLength: int64(len(req.Body)),
 		RemoteAddr:    req.RequestContext.Identity.SourceIP,
 		RequestURI:    req.Path,
+		URL:           requestURL,
 	}
 	return r.WithContext(ctx)
 }

@@ -70,14 +70,23 @@ func addDeleteCredentialParamForMux(r *http.Request, key, value string) *http.Re
 
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	r := httpRequestFromProxyRequest(ctx, req)
-	user, err := mfa.AuthenticateRequest(r)
+
+	storage, err := mfa.NewStorage(envConfig.AWSConfig)
 	if err != nil {
-		return clientError(http.StatusUnauthorized, fmt.Sprintf("unable to authenticate request: %s", err))
+		return clientError(http.StatusInternalServerError, fmt.Sprintf("error initializing storage: %s", err))
+	}
+	newCtx := context.WithValue(r.Context(), mfa.StorageContextKey, storage)
+
+	var user mfa.User
+	if !strings.HasPrefix(r.URL.Path, "/api-key") {
+		user, err = mfa.AuthenticateRequest(r)
+		if err != nil {
+			return clientError(http.StatusUnauthorized, fmt.Sprintf("unable to authenticate request: %s", err))
+		}
+		newCtx = context.WithValue(newCtx, mfa.UserContextKey, user)
 	}
 
-	// Add user into context for further use
-	nctx := context.WithValue(r.Context(), mfa.UserContextKey, user)
-	r = r.WithContext(nctx)
+	r = r.WithContext(newCtx)
 
 	// Use custom lambda http.ResponseWriter
 	w := newLambdaResponseWriter()
@@ -97,6 +106,10 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 		route := strings.ToLower(fmt.Sprintf("%s %s", req.HTTPMethod, req.Path))
 
 		switch route {
+		case "post /api-key":
+			mfa.CreateApiKey(w, r)
+		case "post /api-key/activate":
+			mfa.ActivateApiKey(w, r)
 		case "post /webauthn/login":
 			mfa.BeginLogin(w, r)
 		case "put /webauthn/login":

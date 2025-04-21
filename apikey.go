@@ -105,14 +105,13 @@ func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	// plaintext will hold decrypted content, it must be at least as long
-	// as ciphertext or decryption process will panic
-	plaintext := make([]byte, len(ciphertext))
+	// plaintext must be as long as ciphertext minus the length of the IV, which is the same as the AES block size
+	plaintext := make([]byte, len(ciphertext)-aes.BlockSize)
 
-	// get iv from encrypted content
+	// the IV (initialization vector) is the first BlockSize bytes in the encrypted content
 	iv := ciphertext[:aes.BlockSize]
 
-	// use CTR to decrypt content
+	// use CTR to decrypt content, which starts BlockSize bytes into the ciphertext
 	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(plaintext, ciphertext[aes.BlockSize:])
 

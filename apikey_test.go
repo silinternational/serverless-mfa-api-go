@@ -90,14 +90,12 @@ func TestApiKey_EncryptDecrypt(t *testing.T) {
 		name      string
 		secret    string
 		plaintext []byte
-		want      []byte
 		wantErr   bool
 	}{
 		{
 			name:      "test encrypt/decrypt",
 			secret:    "ED86600E-3DBF-4C23-A0DA-9C55D448",
 			plaintext: []byte("this is a plaintext string to be encrypted"),
-			want:      []byte("this is a plaintext string to be encrypted"),
 			wantErr:   false,
 		},
 	}
@@ -122,8 +120,8 @@ func TestApiKey_EncryptDecrypt(t *testing.T) {
 				return
 			}
 
-			if !bytes.Equal(tt.plaintext, tt.want) {
-				t.Errorf("results from decypt do not match expected. Got: %s, wanted: %s", decrypted, tt.want)
+			if !bytes.Equal(tt.plaintext, decrypted) {
+				t.Errorf("results from decypt do not match expected. Got: %s, wanted: %s", decrypted, tt.plaintext)
 				return
 			}
 		})

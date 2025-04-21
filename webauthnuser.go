@@ -1,7 +1,6 @@
 package mfa
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -226,9 +225,6 @@ func (u *WebauthnUser) Load() error {
 			return errors.Wrap(err, "failed to decrypt encrypted session data")
 		}
 
-		// decryption process includes extra/invalid \x00 character, so trim it out
-		plain = bytes.Trim(plain, "\x00")
-
 		// unmarshal decrypted session data into SessionData
 		var sd webauthn.SessionData
 		err = json.Unmarshal(plain, &sd)
@@ -245,9 +241,6 @@ func (u *WebauthnUser) Load() error {
 		if err != nil {
 			return errors.Wrap(err, "failed to decrypt encrypted credential data")
 		}
-
-		// decryption process includes extra/invalid \x00 character, so trim it out
-		dec = bytes.Trim(dec, "\x00")
 
 		// unmarshal decrypted session data into Credentials
 		var creds []webauthn.Credential
@@ -431,11 +424,6 @@ func (u *WebauthnUser) WebAuthnCredentials() []webauthn.Credential {
 		log.Printf("unable to decrypt credential id: %s", err)
 		return nil
 	}
-
-	// decryption process includes extra/invalid \x00 character, so trim it out
-	// at some point early in dev this was needed, but in testing recently it doesn't
-	// make a difference. Leaving commented out for now until we know 100% it's not needed
-	// credId = bytes.Trim(credId, "\x00")
 
 	decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
 	if err != nil {

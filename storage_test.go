@@ -39,6 +39,7 @@ func (ms *MfaSuite) TestStorage_StoreLoad() {
 				key: "2B28BED1-1225-4EC9-98F9-EAB8FBCEDBA0",
 				item: &WebauthnUser{
 					ID:          "2B28BED1-1225-4EC9-98F9-EAB8FBCEDBA0",
+					ApiKeyValue: "x",
 					Name:        "test_user",
 					DisplayName: "Test User",
 				},
@@ -70,4 +71,34 @@ func (ms *MfaSuite) TestStorage_StoreLoad() {
 			ms.Equal(tt.args.key, user.ID, "incorrect user.ID")
 		})
 	}
+}
+
+func (ms *MfaSuite) TestStorage_QueryApiKey() {
+	cfg, err := config.LoadDefaultConfig(
+		context.Background(),
+		config.WithRegion("local"),
+		config.WithBaseEndpoint(os.Getenv("AWS_ENDPOINT")),
+	)
+	ms.NoError(err)
+
+	s, err := NewStorage(cfg)
+	ms.NoError(err)
+	must(s.Store(TestTableName, &WebauthnUser{
+		ID:             "user1",
+		ApiKeyValue:    "key1",
+		EncryptedAppId: "xyz123",
+	}))
+	must(s.Store(TestTableName, &WebauthnUser{
+		ID:             "user2",
+		ApiKeyValue:    "key2",
+		EncryptedAppId: "abc123",
+	}))
+
+	var users []WebauthnUser
+	err = s.QueryApiKey(TestTableName, "key1", &users)
+	ms.NoError(err)
+	ms.Len(users, 1)
+	ms.Equal("user1", users[0].ID)
+	ms.Equal("key1", users[0].ApiKeyValue)
+	ms.Equal("xyz123", users[0].EncryptedAppId)
 }

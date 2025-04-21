@@ -54,20 +54,25 @@ func (k *ApiKey) Hash() error {
 }
 
 // IsCorrect returns true if and only if the given string is a match for HashedSecret
-func (k *ApiKey) IsCorrect(given string) (bool, error) {
-	if given == "" {
-		return false, errors.New("secret to compare cannot be empty")
+func (k *ApiKey) IsCorrect(given string) error {
+	if k.ActivatedAt == 0 {
+		return fmt.Errorf("key is not active: %s", k.Key)
 	}
+
+	if given == "" {
+		return errors.New("secret to compare cannot be empty")
+	}
+
 	if k.HashedSecret == "" {
-		return false, errors.New("cannot compare with empty hashed secret")
+		return errors.New("cannot compare with empty hashed secret")
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(k.HashedSecret), []byte(given))
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 // EncryptData uses the Secret to AES encrypt an arbitrary data block. It does not encrypt the key itself.
@@ -198,6 +203,50 @@ func (k *ApiKey) Activate() error {
 	return nil
 }
 
+// ReEncryptTables loads each record that was encrypted using this key, re-encrypts it using the new key, and writes
+// the updated data back to the database.
+func (k *ApiKey) ReEncryptTables(oldSecret string) error {
+	var users []WebauthnUser
+	err := k.Store.QueryApiKey(envConfig.WebauthnTable, k.Key, &users)
+	if err != nil {
+		return fmt.Errorf("failed to query %s table for key %s: %w", envConfig.WebauthnTable, k.Key, err)
+	}
+
+	oldKey := *k
+	oldKey.Secret = oldSecret
+	for _, u := range users {
+		sessionData, err := oldKey.DecryptData(u.EncryptedSessionData)
+		if err != nil {
+			return err
+		}
+
+		encryptedSessionData, err := k.EncryptData(sessionData)
+		if err != nil {
+			return err
+		}
+		u.EncryptedSessionData = encryptedSessionData
+
+		credentials, err := oldKey.DecryptData(u.EncryptedCredentials)
+		if err != nil {
+			return err
+		}
+
+		encryptedCredentials, err := k.EncryptData(credentials)
+		if err != nil {
+			return err
+		}
+		u.EncryptedCredentials = encryptedCredentials
+
+		// TODO: handle U2F data
+
+		err = u.Store.Store(envConfig.WebauthnTable, &u)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // ActivateApiKey is the handler for the POST /api-key/activate endpoint. It creates the key secret and updates the
 // database record.
 func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
@@ -287,6 +336,63 @@ func CreateApiKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonResponse(w, nil, http.StatusNoContent)
+}
+
+// RotateApiKey generates a new secret for an existing key. All data in other tables that is encrypted by the key will
+// be re-encrypted using the new secret.
+func RotateApiKey(w http.ResponseWriter, r *http.Request) {
+	var requestBody struct {
+		ApiKeyValue  string `json:"apiKeyValue"`
+		ApiKeySecret string `json:"apiKeySecret"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&requestBody)
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		return
+	}
+
+	if requestBody.ApiKeyValue == "" {
+		jsonResponse(w, fmt.Errorf("apiKeyValue is required"), http.StatusBadRequest)
+		return
+	}
+
+	if requestBody.ApiKeySecret == "" {
+		jsonResponse(w, fmt.Errorf("apiKeySecret is required"), http.StatusBadRequest)
+		return
+	}
+
+	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
+	if !ok {
+		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
+		return
+	}
+
+	key := ApiKey{Key: requestBody.ApiKeyValue, Store: storage}
+	err = key.Load()
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("failed to load key: %s", err), http.StatusNotFound)
+		return
+	}
+
+	err = key.IsCorrect(requestBody.ApiKeySecret)
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("key is not valid: %s", err), http.StatusUnauthorized)
+	}
+
+	key.ActivatedAt = 0
+	err = key.Activate()
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("failed to activate key: %s", err), http.StatusInternalServerError)
+	}
+
+	err = key.ReEncryptTables(requestBody.ApiKeySecret)
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("failed to re-encrypt data: %s", err), http.StatusInternalServerError)
+		return
+	}
+
+	jsonResponse(w, map[string]string{"apiSecret": key.Secret}, http.StatusOK)
 }
 
 // NewApiKey creates a new key with a random value

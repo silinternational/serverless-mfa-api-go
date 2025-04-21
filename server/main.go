@@ -45,16 +45,22 @@ type route struct {
 // Define our routes.
 var routes = []route{
 	{
+		Name:        "ActivateApiKey",
+		Method:      "POST",
+		Pattern:     "/api-key/activate",
+		HandlerFunc: mfa.ActivateApiKey,
+	},
+	{
 		Name:        "CreateApiKey",
 		Method:      "POST",
 		Pattern:     "/api-key",
 		HandlerFunc: mfa.CreateApiKey,
 	},
 	{
-		Name:        "ActivateApiKey",
+		Name:        "RotateApiKey",
 		Method:      "POST",
-		Pattern:     "/api-key/activate",
-		HandlerFunc: mfa.ActivateApiKey,
+		Pattern:     "/api-key/rotate",
+		HandlerFunc: mfa.RotateApiKey,
 	},
 	{
 		Name:        "BeginRegistration",

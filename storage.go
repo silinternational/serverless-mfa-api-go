@@ -13,6 +13,11 @@ import (
 
 const StorageContextKey = "storage"
 
+var (
+	tableNameMissingError = errors.New("table must not be empty")
+	attrNameMissingError  = errors.New("attrName must not be empty")
+)
+
 // Storage provides wrapper methods for interacting with DynamoDB
 type Storage struct {
 	client *dynamodb.Client
@@ -51,10 +56,10 @@ func (s *Storage) Store(table string, item interface{}) error {
 // Load retrieves the value at key and unmarshals it into item.
 func (s *Storage) Load(table, attrName, attrVal string, item interface{}) error {
 	if table == "" {
-		return errors.New("table must not be empty")
+		return tableNameMissingError
 	}
 	if attrName == "" {
-		return errors.New("attrName must not be empty")
+		return attrNameMissingError
 	}
 	if attrVal == "" {
 		return errors.New("attrVal must not be empty")
@@ -84,10 +89,10 @@ func (s *Storage) Load(table, attrName, attrVal string, item interface{}) error 
 // Delete deletes key.
 func (s *Storage) Delete(table, attrName, attrVal string) error {
 	if table == "" {
-		return errors.New("table must not be empty")
+		return tableNameMissingError
 	}
 	if attrName == "" {
-		return errors.New("attrName must not be empty")
+		return attrNameMissingError
 	}
 
 	input := &dynamodb.DeleteItemInput{
@@ -100,4 +105,36 @@ func (s *Storage) Delete(table, attrName, attrVal string) error {
 	ctx := context.Background()
 	_, err := s.client.DeleteItem(ctx, input)
 	return err
+}
+
+// QueryApiKey a table using apiKey-index
+func (s *Storage) QueryApiKey(table, apiKey string, items any) error {
+	if table == "" {
+		return tableNameMissingError
+	}
+
+	input := &dynamodb.QueryInput{
+		IndexName:              aws.String("apiKey-index"),
+		KeyConditionExpression: aws.String("apiKey = :val"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":val": &types.AttributeValueMemberS{Value: apiKey},
+		},
+		TableName: aws.String(table),
+	}
+
+	ctx := context.Background()
+	result, err := s.client.Query(ctx, input)
+	if err != nil {
+		return err
+	}
+
+	if result.LastEvaluatedKey != nil {
+		return errors.New("too many results, pagination has not been implemented")
+	}
+
+	err = attributevalue.UnmarshalListOfMaps(result.Items, &items)
+	if err != nil {
+		return err
+	}
+	return nil
 }

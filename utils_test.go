@@ -58,8 +58,8 @@ func initDb(storage *Storage) error {
 
 	ctx := context.Background()
 
-	// attempt to delete tables in case already exists
 	tables := map[string]string{"WebAuthn": "uuid", "ApiKey": "value"}
+	// attempt to delete tables in case already exists
 	for name := range tables {
 		deleteTable := &dynamodb.DeleteTableInput{
 			TableName: aws.String(name),
@@ -68,30 +68,69 @@ func initDb(storage *Storage) error {
 	}
 
 	// create tables
-	for table, attr := range tables {
-		createTable := &dynamodb.CreateTableInput{
-			AttributeDefinitions: []types.AttributeDefinition{
-				{
-					AttributeName: aws.String(attr),
-					AttributeType: types.ScalarAttributeTypeS,
+	createTable := &dynamodb.CreateTableInput{
+		TableName: aws.String("ApiKey"),
+		AttributeDefinitions: []types.AttributeDefinition{
+			{
+				AttributeName: aws.String("value"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{
+				AttributeName: aws.String("value"),
+				KeyType:       types.KeyTypeHash,
+			},
+		},
+		ProvisionedThroughput: &types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(3),
+			WriteCapacityUnits: aws.Int64(3),
+		},
+	}
+	_, err = storage.client.CreateTable(ctx, createTable)
+	if err != nil {
+		return err
+	}
+
+	createTable = &dynamodb.CreateTableInput{
+		TableName: aws.String("WebAuthn"),
+		AttributeDefinitions: []types.AttributeDefinition{
+			{
+				AttributeName: aws.String("uuid"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+			{
+				AttributeName: aws.String("apiKey"),
+				AttributeType: types.ScalarAttributeTypeS,
+			},
+		},
+		KeySchema: []types.KeySchemaElement{
+			{
+				AttributeName: aws.String("uuid"),
+				KeyType:       types.KeyTypeHash,
+			},
+		},
+		ProvisionedThroughput: &types.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(3),
+			WriteCapacityUnits: aws.Int64(3),
+		},
+		GlobalSecondaryIndexes: []types.GlobalSecondaryIndex{
+			{
+				IndexName: aws.String("apiKey-index"),
+				KeySchema: []types.KeySchemaElement{
+					{AttributeName: aws.String("apiKey"), KeyType: types.KeyTypeHash},
+				},
+				Projection: &types.Projection{ProjectionType: types.ProjectionTypeAll},
+				ProvisionedThroughput: &types.ProvisionedThroughput{
+					ReadCapacityUnits:  aws.Int64(1),
+					WriteCapacityUnits: aws.Int64(1),
 				},
 			},
-			KeySchema: []types.KeySchemaElement{
-				{
-					AttributeName: aws.String(attr),
-					KeyType:       types.KeyTypeHash,
-				},
-			},
-			ProvisionedThroughput: &types.ProvisionedThroughput{
-				ReadCapacityUnits:  aws.Int64(3),
-				WriteCapacityUnits: aws.Int64(3),
-			},
-			TableName: aws.String(table),
-		}
-		_, err = storage.client.CreateTable(ctx, createTable)
-		if err != nil {
-			return err
-		}
+		},
+	}
+	_, err = storage.client.CreateTable(ctx, createTable)
+	if err != nil {
+		return err
 	}
 
 	return nil

@@ -22,7 +22,7 @@ else
   set -x
 fi
 
-go test -v ./...
+go test ./...
 
 # Print the Serverless version in the logs
 serverless --version

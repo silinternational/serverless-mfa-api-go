@@ -395,7 +395,7 @@ paths:
               properties:
                 apiKeyValue:
                   type: string
-                  description: email address of the requester
+                  description: API Key ID
                   required: true
                   example: 0123456789012345678901234567890123456789
                 email:
@@ -430,6 +430,67 @@ paths:
                 email-required:
                   value:
                     error: "email is required"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                not-found:
+                  value:
+                    error: "key not found: item does not exist: 0123456789012345678901234567890123456789"
+  /api-key/rotate:
+    post:
+      operationId: rotateApiKey
+      summary: Rotate API Key
+      description: >
+        Generates a new secret for an existing key. All data in other tables that is encrypted by the key will
+        be re-encrypted using the new secret.
+      requestBody:
+        description: request body for ApiKeyRotate request
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiKeyValue:
+                  type: string
+                  description: API Key ID
+                  required: true
+                  example: 0123456789012345678901234567890123456789
+                apiKeySecret:
+                  type: string
+                  description: API Key secret
+                  required: true
+      responses:
+        200:
+          description: New API secret created and data re-encrypted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  apiSecret:
+                    type: string
+                    description: >
+                      a new random string associated with the key, when paired with the key value can be used to
+                      authenticate against API endpoints
+                    required: true
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                invalid-input:
+                  value:
+                    error: "invalid request: invalid character ',' looking for beginning of value"
+                api-key-required:
+                  value:
+                    error: "apiKeyValue is required"
         404:
           description: Not Found
           content:

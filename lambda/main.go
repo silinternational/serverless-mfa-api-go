@@ -109,6 +109,8 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 			mfa.CreateApiKey(w, r)
 		case "post /api-key/activate":
 			mfa.ActivateApiKey(w, r)
+		case "post /api-key/rotate":
+			mfa.RotateApiKey(w, r)
 		case "post /webauthn/login":
 			mfa.BeginLogin(w, r)
 		case "put /webauthn/login":

@@ -16,22 +16,29 @@ func TestApiKey_IsCorrect(t *testing.T) {
 	tests := []struct {
 		name         string
 		HashedSecret string
+		ActivatedAt  int
 		Given        string
-		want         bool
 		wantErr      bool
 	}{
 		{
 			name:         "valid secret",
 			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			ActivatedAt:  1744896576000,
 			Given:        "abc123",
-			want:         true,
 			wantErr:      false,
 		},
 		{
 			name:         "invalid secret",
 			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			ActivatedAt:  1744896576000,
 			Given:        "123abc",
-			want:         false,
+			wantErr:      true,
+		},
+		{
+			name:         "inactive",
+			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			ActivatedAt:  0,
+			Given:        "abc123",
 			wantErr:      true,
 		},
 	}
@@ -39,14 +46,12 @@ func TestApiKey_IsCorrect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &ApiKey{
 				HashedSecret: tt.HashedSecret,
+				ActivatedAt:  tt.ActivatedAt,
 			}
-			got, err := k.IsCorrect(tt.Given)
+			err := k.IsCorrect(tt.Given)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("IsCorrect() error = %v, wantErr %v", err, tt.wantErr)
 				return
-			}
-			if got != tt.want {
-				t.Errorf("IsCorrect() got = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -68,7 +73,8 @@ func TestApiKey_Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &ApiKey{
-				Secret: tt.Secret,
+				Secret:      tt.Secret,
+				ActivatedAt: 1744896576000,
 			}
 			err := k.Hash()
 			if (err != nil) != tt.wantErr {
@@ -79,13 +85,9 @@ func TestApiKey_Hash(t *testing.T) {
 				t.Error("hashed secret is empty after call to hash")
 				return
 			}
-			valid, err := k.IsCorrect(tt.Secret)
+			err = k.IsCorrect(tt.Secret)
 			if err != nil {
 				t.Errorf("hashed password not valid after hashing??? error: %s", err)
-				return
-			}
-			if !valid {
-				t.Error("hmm, password is not valid but no errors???")
 				return
 			}
 		})

@@ -203,6 +203,39 @@ func (k *ApiKey) Activate() error {
 	return nil
 }
 
+// ReEncrypt decrypts a data block with an old key, then encrypts the resulting plaintext with a new key
+func (k *ApiKey) ReEncrypt(oldKey ApiKey, v *[]byte) error {
+	plaintext, err := oldKey.DecryptData(*v)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt data: %w", err)
+	}
+
+	newCiphertext, err := k.EncryptData(plaintext)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt data: %w", err)
+	}
+
+	*v = newCiphertext
+	return nil
+}
+
+// ReEncryptLegacy decrypts a data block with an old key, then encrypts the resulting plaintext with a new key. This
+// uses a legacy ciphertext format that is stored as Base64 strings.
+func (k *ApiKey) ReEncryptLegacy(oldKey ApiKey, v *string) error {
+	plaintext, err := oldKey.DecryptLegacy([]byte(*v))
+	if err != nil {
+		return err
+	}
+
+	newCiphertext, err := k.EncryptLegacy(plaintext)
+	if err != nil {
+		return err
+	}
+
+	*v = string(newCiphertext)
+	return nil
+}
+
 // ReEncryptTables loads each record that was encrypted using this key, re-encrypts it using the new key, and writes
 // the updated data back to the database.
 func (k *ApiKey) ReEncryptTables(oldSecret string) error {
@@ -215,29 +248,19 @@ func (k *ApiKey) ReEncryptTables(oldSecret string) error {
 	oldKey := *k
 	oldKey.Secret = oldSecret
 	for _, u := range users {
-		sessionData, err := oldKey.DecryptData(u.EncryptedSessionData)
+		err = k.ReEncrypt(oldKey, &u.EncryptedSessionData)
 		if err != nil {
 			return err
 		}
 
-		encryptedSessionData, err := k.EncryptData(sessionData)
-		if err != nil {
-			return err
-		}
-		u.EncryptedSessionData = encryptedSessionData
-
-		credentials, err := oldKey.DecryptData(u.EncryptedCredentials)
+		err = k.ReEncrypt(oldKey, &u.EncryptedCredentials)
 		if err != nil {
 			return err
 		}
 
-		encryptedCredentials, err := k.EncryptData(credentials)
-		if err != nil {
-			return err
+		for _, v := range []*string{&u.EncryptedPublicKey, &u.EncryptedKeyHandle, &u.EncryptedAppId} {
+			err = k.ReEncryptLegacy(oldKey, v)
 		}
-		u.EncryptedCredentials = encryptedCredentials
-
-		// TODO: handle U2F data
 
 		err = u.Store.Store(envConfig.WebauthnTable, &u)
 		if err != nil {

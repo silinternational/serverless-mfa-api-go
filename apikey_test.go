@@ -334,3 +334,57 @@ func (ms *MfaSuite) TestNewApiKey() {
 	ms.NoError(err)
 	ms.Regexp(regexp.MustCompile("[a-f0-9]{40}"), got)
 }
+
+func (ms *MfaSuite) TestApiKeyReEncrypt() {
+	oldKey := ApiKey{}
+	must(oldKey.Activate())
+	newKey := ApiKey{}
+	must(newKey.Activate())
+
+	plaintext := []byte("this is a secret message")
+	ciphertext, err := oldKey.EncryptData(plaintext)
+	ms.NoError(err)
+
+	// keep a copy of the ciphertext before it changes
+	oldCiphertext := ciphertext
+	err = newKey.ReEncrypt(oldKey, &ciphertext)
+	ms.NoError(err)
+
+	// verify it actually changed
+	ms.NotEqual(oldCiphertext, ciphertext)
+	ms.Equal(len(oldCiphertext), len(ciphertext))
+
+	// decrypt and compare with the original plaintext
+	after, err := newKey.DecryptData(ciphertext)
+	ms.NoError(err)
+	ms.Equal(plaintext, after)
+}
+
+func (ms *MfaSuite) TestApiKeyReEncryptLegacy() {
+	oldKey := ApiKey{}
+	must(oldKey.Activate())
+	newKey := ApiKey{}
+	must(newKey.Activate())
+
+	plaintext := []byte("this is a secret message")
+	ciphertext, err := oldKey.EncryptLegacy(plaintext)
+	ms.NoError(err)
+
+	// decrypt and compare with the original plaintext
+	a, err := oldKey.DecryptLegacy(ciphertext)
+	ms.NoError(err)
+	ms.Equal(plaintext, a)
+
+	// convert to string and retain a copy for comparison
+	newCiphertext := string(ciphertext)
+	err = newKey.ReEncryptLegacy(oldKey, &newCiphertext)
+	ms.NoError(err)
+
+	// verify it actually changed
+	ms.False(newCiphertext == string(ciphertext))
+
+	// decrypt and compare with the original plaintext
+	after, err := newKey.DecryptLegacy([]byte(newCiphertext))
+	ms.NoError(err)
+	ms.Equal(plaintext, after)
+}

@@ -60,7 +60,7 @@ type WebauthnUser struct {
 }
 
 // NewWebauthnUser creates a new WebauthnUser from API input data, a storage client and a Webauthn client.
-func NewWebauthnUser(apiConfig ApiMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) WebauthnUser {
+func NewWebauthnUser(apiConfig WebauthnMeta, storage *Storage, apiKey ApiKey, webAuthnClient *webauthn.WebAuthn) WebauthnUser {
 	u := WebauthnUser{
 		ID:             apiConfig.UserUUID,
 		Name:           apiConfig.Username,

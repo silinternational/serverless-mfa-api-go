@@ -1,0 +1,69 @@
+package mfa
+
+import (
+	"fmt"
+	"log"
+	"net/http"
+	"strings"
+)
+
+type User interface{}
+
+// AuthenticateRequest checks the provided API key against the keys stored in the database. If the key is active and
+// valid, a Webauthn client and WebauthnUser are created and stored in the request context.
+func AuthenticateRequest(r *http.Request) (User, error) {
+	// get key and secret from headers
+	key := r.Header.Get("x-mfa-apikey")
+	secret := r.Header.Get("x-mfa-apisecret")
+
+	if key == "" || secret == "" {
+		return nil, fmt.Errorf("x-mfa-apikey and x-mfa-apisecret are required")
+	}
+
+	log.Printf("API called by key: %s. %s %s", key, r.Method, r.RequestURI)
+
+	localStorage, err := NewStorage(envConfig.AWSConfig)
+	if err != nil {
+		return nil, fmt.Errorf("error initializing storage: %w", err)
+	}
+
+	apiKey := ApiKey{
+		Key:    key,
+		Secret: secret,
+		Store:  localStorage,
+	}
+
+	err = apiKey.Load()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load api key: %w", err)
+	}
+
+	if apiKey.ActivatedAt == 0 {
+		return nil, fmt.Errorf("api call attempted for not yet activated key: %s", apiKey.Key)
+	}
+
+	valid, err := apiKey.IsCorrect(secret)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate api key: %w", err)
+	}
+
+	if !valid {
+		return nil, fmt.Errorf("invalid api secret for key %s", key)
+	}
+
+	path := r.URL.Path
+	segments := strings.Split(strings.TrimPrefix(path, "/"), "/")
+	switch segments[0] {
+	case "webauthn":
+		return authWebauthnUser(r, localStorage, apiKey)
+
+	case "totp":
+		return nil, fmt.Errorf("TOTP is not yet supported")
+
+	case "api-key":
+		return nil, fmt.Errorf("key management is not yet supported")
+
+	default:
+		return nil, fmt.Errorf("invalid URL: %s", r.URL)
+	}
+}

@@ -72,7 +72,7 @@ func (ms *MfaSuite) TestStorage_StoreLoad() {
 	}
 }
 
-func (ms *MfaSuite) TestStorage_ScanApiKey() {
+func (ms *MfaSuite) TestStorageScanApiKey() {
 	cfg, err := config.LoadDefaultConfig(
 		context.Background(),
 		config.WithRegion("local"),

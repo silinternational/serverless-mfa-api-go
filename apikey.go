@@ -119,6 +119,28 @@ func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
+// EncryptLegacy uses the Secret to AES encrypt an arbitrary data block. This is intended only for legacy data such
+// as U2F keys. The returned data is the Base64-encoded IV and the Base64-encoded cipher text separated by a colon.
+func (k *ApiKey) EncryptLegacy(plaintext []byte) ([]byte, error) {
+	block, err := newCipherBlock(k.Secret)
+	if err != nil {
+		return nil, err
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, fmt.Errorf("failed to create random data for initialization vector: %w", err)
+	}
+
+	ciphertext := make([]byte, len(plaintext))
+	stream := cipher.NewCTR(block, iv)
+	stream.XORKeyStream(ciphertext, plaintext)
+
+	ivBase64 := base64.StdEncoding.EncodeToString(iv)
+	cipherBase64 := base64.StdEncoding.EncodeToString(ciphertext)
+	return []byte(ivBase64 + ":" + cipherBase64), nil
+}
+
 // DecryptLegacy uses the Secret to AES decrypt an arbitrary data block. This is intended only for legacy data such
 // as U2F keys.
 func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {

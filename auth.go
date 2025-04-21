@@ -42,13 +42,9 @@ func AuthenticateRequest(r *http.Request) (User, error) {
 		return nil, fmt.Errorf("api call attempted for not yet activated key: %s", apiKey.Key)
 	}
 
-	valid, err := apiKey.IsCorrect(secret)
+	err = apiKey.IsCorrect(secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate api key: %w", err)
-	}
-
-	if !valid {
-		return nil, fmt.Errorf("invalid api secret for key %s", key)
 	}
 
 	path := r.URL.Path

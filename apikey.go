@@ -54,20 +54,20 @@ func (k *ApiKey) Hash() error {
 }
 
 // IsCorrect returns true if and only if the given string is a match for HashedSecret
-func (k *ApiKey) IsCorrect(given string) (bool, error) {
+func (k *ApiKey) IsCorrect(given string) error {
 	if given == "" {
-		return false, errors.New("secret to compare cannot be empty")
+		return errors.New("secret to compare cannot be empty")
 	}
 	if k.HashedSecret == "" {
-		return false, errors.New("cannot compare with empty hashed secret")
+		return errors.New("cannot compare with empty hashed secret")
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(k.HashedSecret), []byte(given))
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 // EncryptData uses the Secret to AES encrypt an arbitrary data block. It does not encrypt the key itself.

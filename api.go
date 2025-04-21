@@ -2,6 +2,7 @@ package mfa
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 )
@@ -16,6 +17,20 @@ type simpleError struct {
 // newSimpleError creates a new simpleError from the given error
 func newSimpleError(err error) simpleError {
 	return simpleError{Error: err.Error()}
+}
+
+// invalidRequest is a helper for response to an invalid request, such as when the request body cannot be decoded
+func invalidRequest(w http.ResponseWriter, err error) {
+	jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+}
+
+// getStorageClient retrieves a Storage client from the request context
+func getStorageClient(r *http.Request) (*Storage, error) {
+	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
+	if !ok {
+		return nil, fmt.Errorf("no storage client found in context")
+	}
+	return storage, nil
 }
 
 // jsonResponse encodes a body as JSON and writes it to the response. It sets the response Content-Type header to

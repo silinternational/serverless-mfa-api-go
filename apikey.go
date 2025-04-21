@@ -257,7 +257,7 @@ func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		invalidRequest(w, err)
 		return
 	}
 
@@ -271,9 +271,9 @@ func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
+	storage, err := getStorageClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 
@@ -307,7 +307,7 @@ func CreateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		invalidRequest(w, err)
 		return
 	}
 
@@ -322,9 +322,9 @@ func CreateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
+	storage, err := getStorageClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 	key.Store = storage
@@ -348,7 +348,7 @@ func RotateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		invalidRequest(w, err)
 		return
 	}
 
@@ -362,9 +362,9 @@ func RotateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
+	storage, err := getStorageClient(r)
+	if err != nil {
+		jsonResponse(w, err, http.StatusInternalServerError)
 		return
 	}
 

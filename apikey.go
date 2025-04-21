@@ -257,8 +257,11 @@ func (k *ApiKey) ReEncryptTables(oldSecret string) error {
 			return err
 		}
 
-		for _, v := range []*string{&u.EncryptedPublicKey, &u.EncryptedKeyHandle, &u.EncryptedAppId} {
-			err = k.ReEncryptLegacy(oldKey, v)
+		for _, p := range []*string{&u.EncryptedPublicKey, &u.EncryptedKeyHandle, &u.EncryptedAppId} {
+			err = k.ReEncryptLegacy(oldKey, p)
+			if err != nil {
+				return err
+			}
 		}
 
 		err = u.Store.Store(envConfig.WebauthnTable, &u)

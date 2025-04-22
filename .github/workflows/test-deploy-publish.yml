@@ -66,6 +66,7 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       LAMBDA_ROLE: ${{ vars.LAMBDA_ROLE }}
       API_KEY_TABLE: ${{ vars.API_KEY_TABLE }}
+      TOTP_TABLE: ${{ vars.TOTP_TABLE }}
       WEBAUTHN_TABLE: ${{ vars.WEBAUTHN_TABLE }}
 
     steps:

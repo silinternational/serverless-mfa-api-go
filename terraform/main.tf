@@ -56,9 +56,10 @@ data "template_file" "lambdaRolePolicy" {
   vars = {
     aws_account    = var.aws_account_id
     app_name       = var.app_name
-    app_env        = var.app_env
-    api_key_table  = var.api_key_table != "" ? var.api_key_table : aws_dynamodb_table.apiKeyTable[0].name
-    webauthn_table = var.webauthn_table != "" ? var.webauthn_table : aws_dynamodb_table.webauthnTable[0].name
+    app_env        = local.app_env
+    api_key_table  = coalesce(var.api_key_table, aws_dynamodb_table.apiKeyTable[0].name)
+    totp_table     = coalesce(var.totp_table, aws_dynamodb_table.totp[0].name)
+    webauthn_table = coalesce(var.webauthn_table, aws_dynamodb_table.webauthnTable[0].name)
   }
 }
 
@@ -83,6 +84,34 @@ resource "aws_dynamodb_table" "apiKeyTable" {
   tags = {
     app_name = var.app_name
     app_env  = var.app_env
+  }
+}
+
+resource "aws_dynamodb_table" "totp" {
+  count = var.create_totp_table ? 1 : 0
+
+  name                        = "${var.app_name}_${var.app_env}_totp_global"
+  hash_key                    = "uuid"
+  billing_mode                = "PAY_PER_REQUEST"
+  deletion_protection_enabled = true
+  stream_enabled              = true
+  stream_view_type            = "NEW_IMAGE"
+
+  attribute {
+    name = "uuid"
+    type = "S"
+  }
+
+  point_in_time_recovery {
+    enabled = true
+  }
+
+  replica {
+    region_name = var.aws_region_secondary
+  }
+
+  lifecycle {
+    ignore_changes = [replica]
   }
 }
 

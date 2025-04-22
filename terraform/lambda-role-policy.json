@@ -29,25 +29,23 @@
     },
     {
       "Action": [
-        "dynamodb:DescribeTable",
         "dynamodb:Query",
         "dynamodb:Scan",
         "dynamodb:GetItem",
         "dynamodb:PutItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}"
+        "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}",
+        "arn:aws:dynamodb:*:${aws_account}:table/${totp_table}"
       ],
       "Effect": "Allow"
     },
     {
       "Action": [
-        "dynamodb:DescribeTable",
         "dynamodb:Query",
         "dynamodb:Scan",
         "dynamodb:GetItem",
         "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
         "dynamodb:DeleteItem"
       ],
       "Resource": [

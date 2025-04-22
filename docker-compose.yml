@@ -33,6 +33,7 @@ services:
       AWS_ACCESS_KEY_ID: abc123
       AWS_SECRET_ACCESS_KEY: abc123
       API_KEY_TABLE: ApiKey
+      TOTP_TABLE: Totp
       WEBAUTHN_TABLE: WebAuthn
     depends_on:
       - dynamo

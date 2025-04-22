@@ -102,7 +102,7 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: |
-            ${{ vars.IMAGE_NAME }}
+            ${{ vars.DOCKER_ORG }}/${{ github.event.repository.name }}
             ghcr.io/${{ github.repository }}
           tags: |
             type=ref,event=branch

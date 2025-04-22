@@ -38,10 +38,6 @@ func AuthenticateRequest(r *http.Request) (User, error) {
 		return nil, fmt.Errorf("failed to load api key: %w", err)
 	}
 
-	if apiKey.ActivatedAt == 0 {
-		return nil, fmt.Errorf("api call attempted for not yet activated key: %s", apiKey.Key)
-	}
-
 	err = apiKey.IsCorrect(secret)
 	if err != nil {
 		return nil, fmt.Errorf("failed to validate api key: %w", err)

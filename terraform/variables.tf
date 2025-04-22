@@ -81,7 +81,7 @@ variable "totp_table" {
 variable "create_totp_table" {
   description = "enable the creation of a DynamoDB table for TOTP credentials"
   type        = bool
-  default     = true
+  default     = false
 }
 
 variable "webauthn_table" {

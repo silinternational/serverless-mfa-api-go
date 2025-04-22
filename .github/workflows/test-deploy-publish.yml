@@ -78,6 +78,7 @@ jobs:
   build-and-publish:
     name: Build and Publish
     needs: [ 'tests', 'lint' ]
+    if: github.ref_name == 'main' || github.ref_name == 'develop'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

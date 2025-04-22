@@ -61,7 +61,7 @@ func AuthenticateRequest(r *http.Request) (User, error) {
 		return nil, fmt.Errorf("TOTP is not yet supported")
 
 	case "api-key":
-		return nil, fmt.Errorf("key management is not yet supported")
+		return nil, nil // no authentication required for api-key
 
 	default:
 		return nil, fmt.Errorf("invalid URL: %s", r.URL)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 
 	mfa "github.com/silinternational/serverless-mfa-api-go"
 )
@@ -13,6 +14,11 @@ import (
 // user from storage and attach to context.
 func authenticationMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.HasPrefix(r.URL.Path, "/api-key") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		user, err := mfa.AuthenticateRequest(r)
 		if err != nil {
 			http.Error(w, fmt.Sprintf("unable to authenticate request: %s", err), http.StatusUnauthorized)

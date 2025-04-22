@@ -239,7 +239,7 @@ func (k *ApiKey) ReEncryptLegacy(oldKey ApiKey, v *string) error {
 // the updated data back to the database.
 func (k *ApiKey) ReEncryptTables(oldSecret string) error {
 	var users []WebauthnUser
-	err := k.Store.QueryApiKey(envConfig.WebauthnTable, k.Key, &users)
+	err := k.Store.ScanApiKey(envConfig.WebauthnTable, k.Key, &users)
 	if err != nil {
 		return fmt.Errorf("failed to query %s table for key %s: %w", envConfig.WebauthnTable, k.Key, err)
 	}

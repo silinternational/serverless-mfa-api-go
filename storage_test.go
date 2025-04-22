@@ -73,7 +73,7 @@ func (ms *MfaSuite) TestStorage_StoreLoad() {
 	}
 }
 
-func (ms *MfaSuite) TestStorage_QueryApiKey() {
+func (ms *MfaSuite) TestStorageScanApiKey() {
 	cfg, err := config.LoadDefaultConfig(
 		context.Background(),
 		config.WithRegion("local"),
@@ -95,7 +95,7 @@ func (ms *MfaSuite) TestStorage_QueryApiKey() {
 	}))
 
 	var users []WebauthnUser
-	err = s.QueryApiKey(TestTableName, "key1", &users)
+	err = s.ScanApiKey(TestTableName, "key1", &users)
 	ms.NoError(err)
 	ms.Len(users, 1)
 	ms.Equal("user1", users[0].ID)

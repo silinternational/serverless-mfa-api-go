@@ -107,15 +107,14 @@ func (s *Storage) Delete(table, attrName, attrVal string) error {
 	return err
 }
 
-// QueryApiKey a table using apiKey-index
-func (s *Storage) QueryApiKey(table, apiKey string, items any) error {
+// ScanApiKey a table using apiKey-index
+func (s *Storage) ScanApiKey(table, apiKey string, items any) error {
 	if table == "" {
 		return tableNameMissingError
 	}
 
-	input := &dynamodb.QueryInput{
-		IndexName:              aws.String("apiKey-index"),
-		KeyConditionExpression: aws.String("apiKey = :val"),
+	input := &dynamodb.ScanInput{
+		FilterExpression: aws.String("apiKey = :val"),
 		ExpressionAttributeValues: map[string]types.AttributeValue{
 			":val": &types.AttributeValueMemberS{Value: apiKey},
 		},
@@ -123,7 +122,7 @@ func (s *Storage) QueryApiKey(table, apiKey string, items any) error {
 	}
 
 	ctx := context.Background()
-	result, err := s.client.Query(ctx, input)
+	result, err := s.client.Scan(ctx, input)
 	if err != nil {
 		return err
 	}

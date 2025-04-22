@@ -22,6 +22,8 @@ import (
 
 const localAppID = "http://localhost"
 
+const exampleEmail = "email@example.com"
+
 func testAwsConfig() aws.Config {
 	cfg, err := config.LoadDefaultConfig(
 		context.Background(),

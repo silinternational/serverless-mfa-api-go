@@ -138,7 +138,7 @@ func TestApiKey_EncryptDecrypt(t *testing.T) {
 func (ms *MfaSuite) TestApiKeyActivate() {
 	notActive := ApiKey{
 		Key:       "0000000000000000000000000000000000000000",
-		Email:     "email@example.com",
+		Email:     exampleEmail,
 		CreatedAt: 1744788331000,
 	}
 	active := notActive
@@ -203,16 +203,16 @@ func (ms *MfaSuite) TestActivateApiKey() {
 	}{
 		{
 			name: "not previously activated",
-			body: map[string]interface{}{
-				"email":       "email@example.com",
+			body: map[string]any{
+				"email":       exampleEmail,
 				"apiKeyValue": key1.Key,
 			},
 			wantStatus: http.StatusOK,
 		},
 		{
 			name: "already activated",
-			body: map[string]interface{}{
-				"email":       "email@example.com",
+			body: map[string]any{
+				"email":       exampleEmail,
 				"apiKeyValue": key2.Key,
 			},
 			wantStatus: http.StatusBadRequest,
@@ -220,7 +220,7 @@ func (ms *MfaSuite) TestActivateApiKey() {
 		},
 		{
 			name: "missing email",
-			body: map[string]interface{}{
+			body: map[string]any{
 				"apiKeyValue": key3.Key,
 			},
 			wantStatus: http.StatusBadRequest,
@@ -228,16 +228,16 @@ func (ms *MfaSuite) TestActivateApiKey() {
 		},
 		{
 			name: "missing apiKey",
-			body: map[string]interface{}{
-				"email": "email@example.com",
+			body: map[string]any{
+				"email": exampleEmail,
 			},
 			wantStatus: http.StatusBadRequest,
 			wantError:  "apiKeyValue is required",
 		},
 		{
 			name: "key not found",
-			body: map[string]interface{}{
-				"email":       "email@example.com",
+			body: map[string]any{
+				"email":       exampleEmail,
 				"apiKeyValue": "not a key",
 			},
 			wantStatus: http.StatusNotFound,
@@ -251,14 +251,14 @@ func (ms *MfaSuite) TestActivateApiKey() {
 			ActivateApiKey(res, req)
 
 			if tt.wantStatus != http.StatusOK {
-				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("response: %s", res.Body))
+				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("ActivateApiKey response: %s", res.Body))
 				var se simpleError
 				ms.decodeBody(res.Body, &se)
 				ms.Equal(tt.wantError, se.Error)
 				return
 			}
 
-			ms.Equal(http.StatusOK, res.Status, fmt.Sprintf("response: %s", res.Body))
+			ms.Equal(http.StatusOK, res.Status, fmt.Sprintf("ActivateApiKey response: %s", res.Body))
 
 			var response struct {
 				ApiSecret string `json:"apiSecret"`
@@ -284,7 +284,7 @@ func (ms *MfaSuite) TestCreateApiKey() {
 		{
 			name: "success",
 			body: map[string]interface{}{
-				"email": "email@example.com",
+				"email": exampleEmail,
 			},
 			wantStatus: http.StatusNoContent,
 		},
@@ -302,20 +302,20 @@ func (ms *MfaSuite) TestCreateApiKey() {
 			CreateApiKey(res, req)
 
 			if tt.wantError != "" {
-				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("response: %s", res.Body))
+				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("CreateApiKey response: %s", res.Body))
 				var se simpleError
 				ms.decodeBody(res.Body, &se)
 				ms.Equal(tt.wantError, se.Error)
 				return
 			}
 
-			ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("response: %s", res.Body))
+			ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("CreateApiKey response: %s", res.Body))
 		})
 	}
 }
 
 func (ms *MfaSuite) TestNewApiKey() {
-	got, err := NewApiKey("email@example.com")
+	got, err := NewApiKey(exampleEmail)
 	ms.NoError(err)
 	ms.Regexp(regexp.MustCompile("[a-f0-9]{40}"), got)
 }

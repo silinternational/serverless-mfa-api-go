@@ -52,7 +52,7 @@ func (k *ApiKey) Hash() error {
 	return err
 }
 
-// IsCorrect returns true if and only if the given string is a match for HashedSecret
+// IsCorrect returns true if and only if the key is active and the given string is a match for HashedSecret
 func (k *ApiKey) IsCorrect(given string) error {
 	if k.ActivatedAt == 0 {
 		return fmt.Errorf("key is not active: %s", k.Key)

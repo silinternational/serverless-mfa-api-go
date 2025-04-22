@@ -17,22 +17,34 @@ import (
 )
 
 func TestApiKey_IsCorrect(t *testing.T) {
+	const hashedSecret = "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa"
+
 	tests := []struct {
 		name         string
 		HashedSecret string
+		ActivatedAt  int
 		Given        string
 		wantErr      bool
 	}{
 		{
 			name:         "valid secret",
-			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			HashedSecret: hashedSecret,
+			ActivatedAt:  1744896576000,
 			Given:        "abc123",
 			wantErr:      false,
 		},
 		{
 			name:         "invalid secret",
-			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			HashedSecret: hashedSecret,
+			ActivatedAt:  1744896576000,
 			Given:        "123abc",
+			wantErr:      true,
+		},
+		{
+			name:         "inactive",
+			HashedSecret: hashedSecret,
+			ActivatedAt:  0,
+			Given:        "abc123",
 			wantErr:      true,
 		},
 	}
@@ -40,6 +52,7 @@ func TestApiKey_IsCorrect(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &ApiKey{
 				HashedSecret: tt.HashedSecret,
+				ActivatedAt:  tt.ActivatedAt,
 			}
 			err := k.IsCorrect(tt.Given)
 			if (err != nil) != tt.wantErr {
@@ -66,7 +79,8 @@ func TestApiKey_Hash(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			k := &ApiKey{
-				Secret: tt.Secret,
+				Secret:      tt.Secret,
+				ActivatedAt: 1744896576000,
 			}
 			err := k.Hash()
 			if (err != nil) != tt.wantErr {

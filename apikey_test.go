@@ -17,6 +17,8 @@ import (
 )
 
 func TestApiKey_IsCorrect(t *testing.T) {
+	const hashedSecret = "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa"
+
 	tests := []struct {
 		name         string
 		HashedSecret string
@@ -26,21 +28,21 @@ func TestApiKey_IsCorrect(t *testing.T) {
 	}{
 		{
 			name:         "valid secret",
-			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			HashedSecret: hashedSecret,
 			ActivatedAt:  1744896576000,
 			Given:        "abc123",
 			wantErr:      false,
 		},
 		{
 			name:         "invalid secret",
-			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			HashedSecret: hashedSecret,
 			ActivatedAt:  1744896576000,
 			Given:        "123abc",
 			wantErr:      true,
 		},
 		{
 			name:         "inactive",
-			HashedSecret: "$2y$10$Y.FlUK8q//DfybgFzNG2lONaJwvEFxHnCRo/r60BZbITDT6rOUhGa",
+			HashedSecret: hashedSecret,
 			ActivatedAt:  0,
 			Given:        "abc123",
 			wantErr:      true,

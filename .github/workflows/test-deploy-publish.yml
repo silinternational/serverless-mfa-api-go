@@ -16,40 +16,49 @@ jobs:
     name: Tests
     runs-on: ubuntu-latest
     env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      STG_AWS_ACCESS_KEY_ID: ${{ vars.STG_AWS_ACCESS_KEY_ID }}
-      STG_AWS_SECRET_ACCESS_KEY: ${{ secrets.STG_AWS_SECRET_ACCESS_KEY }}
-      PRD_AWS_ACCESS_KEY_ID: ${{ vars.PRD_AWS_ACCESS_KEY_ID }}
-      PRD_AWS_SECRET_ACCESS_KEY: ${{ secrets.PRD_AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
       - name: Test
-        run: docker compose -f actions-services.yml run --rm test ./scripts/test.sh
+        run: go test ./...
 
   lint:
     name: Lint and Vulnerability Scan
     runs-on: ubuntu-latest
     timeout-minutes: ${{ fromJSON(vars.DEFAULT_JOB_TIMEOUT_MINUTES) }}
     steps:
-    - uses: actions/checkout@v4
-    - uses: actions/setup-go@v5
-      with:
-        go-version-file: 'go.mod'
-        check-latest: true
-    - name: golangci-lint
-      uses: golangci/golangci-lint-action@v6
-      with:
-        version: latest
-    - name: govulncheck
-      run: |
-        go install golang.org/x/vuln/cmd/govulncheck@latest
-        govulncheck ./...
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          check-latest: true
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+
+      - name: govulncheck
+        run: |
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
 
   deploy:
     name: Deploy to AWS Lambda
     needs: [ 'tests', 'lint' ]
     if: github.ref_name == 'main' || github.ref_name == 'develop'
+    environment: ${{ github.ref_name }}
     runs-on: ubuntu-latest
     concurrency:
       group: deploy-${{ github.ref }}-${{ matrix.region }}
@@ -58,23 +67,18 @@ jobs:
       matrix:
         region: [ us-east-1, us-west-2 ]
     env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      STG_AWS_ACCESS_KEY_ID: ${{ vars.STG_AWS_ACCESS_KEY_ID }}
-      STG_AWS_SECRET_ACCESS_KEY: ${{ secrets.STG_AWS_SECRET_ACCESS_KEY }}
-      STG_LAMBDA_ROLE: ${{ vars.STG_LAMBDA_ROLE }}
-      STG_API_KEY_TABLE: ${{ vars.STG_API_KEY_TABLE }}
-      STG_WEBAUTHN_TABLE: ${{ vars.STG_WEBAUTHN_TABLE }}
-      PRD_AWS_ACCESS_KEY_ID: ${{ vars.PRD_AWS_ACCESS_KEY_ID }}
-      PRD_AWS_SECRET_ACCESS_KEY: ${{ secrets.PRD_AWS_SECRET_ACCESS_KEY }}
-      PRD_LAMBDA_ROLE: ${{ vars.PRD_LAMBDA_ROLE }}
-      PRD_API_KEY_TABLE: ${{ vars.PRD_API_KEY_TABLE }}
-      PRD_WEBAUTHN_TABLE: ${{ vars.PRD_WEBAUTHN_TABLE }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      LAMBDA_ROLE: ${{ vars.LAMBDA_ROLE }}
+      API_KEY_TABLE: ${{ vars.API_KEY_TABLE }}
+      WEBAUTHN_TABLE: ${{ vars.WEBAUTHN_TABLE }}
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+
       - name: Deploy
-        run: docker compose -f actions-services.yml run --rm app ./scripts/deploy.sh ${{ matrix.region }}
+        run: docker compose run app ./scripts/deploy.sh ${{ matrix.region }}
 
   build-and-publish:
     name: Build and Publish

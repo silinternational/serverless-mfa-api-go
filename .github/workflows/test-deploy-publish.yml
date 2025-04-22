@@ -23,13 +23,8 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: 'go.mod'
-          check-latest: true
-
       - name: Test
-        run: go test ./...
+        run: docker compose run app go test ./...
 
   lint:
     name: Lint and Vulnerability Scan

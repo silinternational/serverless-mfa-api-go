@@ -4,13 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 
 	"github.com/fxamacker/cbor/v2"
-	"github.com/pkg/errors"
 
 	"github.com/go-webauthn/webauthn/protocol"
 	"github.com/go-webauthn/webauthn/protocol/webauthncose"
@@ -212,14 +212,14 @@ func (u *WebauthnUser) encryptAndStoreCredentials() error {
 func (u *WebauthnUser) Load() error {
 	err := u.Store.Load(envConfig.WebauthnTable, WebAuthnTablePK, u.ID, u)
 	if err != nil {
-		return errors.Wrap(err, "failed to load user")
+		return fmt.Errorf("failed to load user: %w", err)
 	}
 
 	// decrypt SessionStorage if available
 	if len(u.EncryptedSessionData) > 0 {
 		plain, err := u.ApiKey.DecryptData(u.EncryptedSessionData)
 		if err != nil {
-			return errors.Wrap(err, "failed to decrypt encrypted session data")
+			return fmt.Errorf("failed to decrypt encrypted session data: %w", err)
 		}
 
 		// unmarshal decrypted session data into SessionData
@@ -236,14 +236,14 @@ func (u *WebauthnUser) Load() error {
 	if len(u.EncryptedCredentials) > 0 {
 		dec, err := u.ApiKey.DecryptData(u.EncryptedCredentials)
 		if err != nil {
-			return errors.Wrap(err, "failed to decrypt encrypted credential data")
+			return fmt.Errorf("failed to decrypt encrypted credential data: %w", err)
 		}
 
 		// unmarshal decrypted session data into Credentials
 		var creds []webauthn.Credential
 		err = json.Unmarshal(dec, &creds)
 		if err != nil {
-			return errors.Wrap(err, "failed to unmarshal credential data")
+			return fmt.Errorf("failed to unmarshal credential data: %w", err)
 		}
 		u.Credentials = creds
 	}

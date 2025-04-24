@@ -6,6 +6,9 @@ set -e
 # Echo out all commands for monitoring progress
 set -x
 
+# temporary: see permissions on .git folder to troubleshoot error message "error obtaining VCS status: exit status 128"
+ls -adl .git
+
 # Build binaries
 CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./lambda
 

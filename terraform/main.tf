@@ -64,9 +64,9 @@ data "template_file" "lambdaRolePolicy" {
     app_name    = var.app_name
     app_env     = var.app_env
     table_arns = join(",", compact([
-      local.api_key_table == null ? null : "arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.api_key_table}",
-      local.webauthn_table == null ? null : "arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.webauthn_table}",
-      local.totp_table == null ? null : "arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.totp_table}",
+      local.api_key_table == null ? null : "\"arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.api_key_table}\"",
+      local.webauthn_table == null ? null : "\"arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.webauthn_table}\"",
+      local.totp_table == null ? null : "\"arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.totp_table}\"",
     ]))
   }
 }

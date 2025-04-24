@@ -8,6 +8,7 @@ set -x
 
 # temporary: see permissions on .git folder to troubleshoot error message "error obtaining VCS status: exit status 128"
 ls -adl .git
+git config --global --add safe.directory $(pwd)
 
 # Build binaries
 CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./lambda

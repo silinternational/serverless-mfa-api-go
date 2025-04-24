@@ -57,9 +57,9 @@ data "template_file" "lambdaRolePolicy" {
     aws_account    = var.aws_account_id
     app_name       = var.app_name
     app_env        = var.app_env
-    api_key_table  = coalesce(var.api_key_table, aws_dynamodb_table.apiKeyTable[0].name)
-    totp_table     = coalesce(var.totp_table, aws_dynamodb_table.totp[0].name)
-    webauthn_table = coalesce(var.webauthn_table, aws_dynamodb_table.webauthnTable[0].name)
+    api_key_table  = coalesce(var.api_key_table, one(aws_dynamodb_table.apiKeyTable[*].name))
+    totp_table     = coalesce(var.totp_table, one(aws_dynamodb_table.totp[*].name))
+    webauthn_table = coalesce(var.webauthn_table, one(aws_dynamodb_table.webauthnTable[*].name))
   }
 }
 

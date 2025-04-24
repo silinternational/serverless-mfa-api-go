@@ -15,6 +15,7 @@ var envConfig EnvConfig
 // EnvConfig holds environment specific configurations and is populated on init
 type EnvConfig struct {
 	ApiKeyTable   string `required:"true" split_words:"true"`
+	TotpTable     string `required:"true" split_words:"true"`
 	WebauthnTable string `required:"true" split_words:"true"`
 
 	AwsEndpoint      string `default:"" split_words:"true"`

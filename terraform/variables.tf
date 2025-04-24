@@ -72,6 +72,18 @@ variable "create_api_key_table" {
   default = true
 }
 
+variable "totp_table" {
+  description = "Override totp table name"
+  type        = string
+  default     = ""
+}
+
+variable "create_totp_table" {
+  description = "enable the creation of a DynamoDB table for TOTP credentials"
+  type        = bool
+  default     = false
+}
+
 variable "webauthn_table" {
   type        = string
   description = "Override webauthn table name"

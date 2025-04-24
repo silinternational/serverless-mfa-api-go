@@ -51,15 +51,23 @@ resource "aws_iam_role" "lambdaRole" {
   })
 }
 
+locals {
+  api_key_table  = try(var.api_key_table, one(aws_dynamodb_table.apiKeyTable[*].name))
+  totp_table     = try(var.totp_table, one(aws_dynamodb_table.totp[*].name))
+  webauthn_table = try(var.webauthn_table, one(aws_dynamodb_table.webauthnTable[*].name))
+}
+
 data "template_file" "lambdaRolePolicy" {
   template = file("${path.module}/lambda-role-policy.json")
   vars = {
-    aws_account    = var.aws_account_id
-    app_name       = var.app_name
-    app_env        = var.app_env
-    api_key_table  = coalesce(var.api_key_table, one(aws_dynamodb_table.apiKeyTable[*].name))
-    totp_table     = coalesce(var.totp_table, one(aws_dynamodb_table.totp[*].name))
-    webauthn_table = coalesce(var.webauthn_table, one(aws_dynamodb_table.webauthnTable[*].name))
+    aws_account = var.aws_account_id
+    app_name    = var.app_name
+    app_env     = var.app_env
+    table_arns = join(",", compact([
+      local.api_key_table == null ? null : "arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.api_key_table}",
+      local.webauthn_table == null ? null : "arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.webauthn_table}",
+      local.totp_table == null ? null : "arn:aws:dynamodb:*:${var.aws_account_id}:table/${local.totp_table}",
+    ]))
   }
 }
 

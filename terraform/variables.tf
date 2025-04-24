@@ -75,7 +75,7 @@ variable "create_api_key_table" {
 variable "totp_table" {
   description = "Override totp table name"
   type        = string
-  default     = ""
+  default     = null
 }
 
 variable "create_totp_table" {

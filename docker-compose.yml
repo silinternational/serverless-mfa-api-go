@@ -7,7 +7,8 @@ services:
     volumes:
       - ./.cert/:/cert/
     env_file:
-      - local.env
+      - path: ./local.env
+        required: false
 
   dynamo:
     image: amazon/dynamodb-local
@@ -26,11 +27,13 @@ services:
     ports:
       - 8080
     environment:
+      AWS_REGION: localhost
       AWS_ENDPOINT: http://dynamo:8000
       AWS_DEFAULT_REGION: localhost
       AWS_ACCESS_KEY_ID: abc123
       AWS_SECRET_ACCESS_KEY: abc123
       API_KEY_TABLE: ApiKey
+      TOTP_TABLE: Totp
       WEBAUTHN_TABLE: WebAuthn
     depends_on:
       - dynamo
@@ -46,7 +49,8 @@ services:
   sls:
     build: .
     env_file:
-      - local.env
+      - path: ./local.env
+        required: false
     volumes:
       - .:/src
     command: ["bash"]

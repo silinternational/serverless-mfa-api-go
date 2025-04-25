@@ -8,12 +8,11 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"golang.org/x/crypto/bcrypt"
 )
@@ -53,35 +52,33 @@ func (k *ApiKey) Hash() error {
 	return err
 }
 
-// IsCorrect returns true if and only if the given string is a match for HashedSecret
-func (k *ApiKey) IsCorrect(given string) (bool, error) {
-	if given == "" {
-		return false, errors.New("secret to compare cannot be empty")
+// IsCorrect returns true if and only if the key is active and the given string is a match for HashedSecret
+func (k *ApiKey) IsCorrect(given string) error {
+	if k.ActivatedAt == 0 {
+		return fmt.Errorf("key is not active: %s", k.Key)
 	}
+
+	if given == "" {
+		return errors.New("secret to compare cannot be empty")
+	}
+
 	if k.HashedSecret == "" {
-		return false, errors.New("cannot compare with empty hashed secret")
+		return errors.New("cannot compare with empty hashed secret")
 	}
 
 	err := bcrypt.CompareHashAndPassword([]byte(k.HashedSecret), []byte(given))
 	if err != nil {
-		return false, err
+		return err
 	}
 
-	return true, nil
+	return nil
 }
 
 // EncryptData uses the Secret to AES encrypt an arbitrary data block. It does not encrypt the key itself.
 func (k *ApiKey) EncryptData(plaintext []byte) ([]byte, error) {
-	var sec []byte
-	var err error
-	sec, err = base64.StdEncoding.DecodeString(k.Secret)
+	block, err := newCipherBlock(k.Secret)
 	if err != nil {
-		sec = []byte(k.Secret)
-	}
-	// create cipher block with api secret as aes key
-	block, err := aes.NewCipher(sec)
-	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	// byte array to hold encrypted content
@@ -103,16 +100,9 @@ func (k *ApiKey) EncryptData(plaintext []byte) ([]byte, error) {
 
 // DecryptData uses the Secret to AES decrypt an arbitrary data block. It does not decrypt the key itself.
 func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
-	var sec []byte
-	var err error
-	sec, err = base64.StdEncoding.DecodeString(k.Secret)
+	block, err := newCipherBlock(k.Secret)
 	if err != nil {
-		sec = []byte(k.Secret)
-	}
-
-	block, err := aes.NewCipher(sec)
-	if err != nil {
-		return []byte{}, errors.Wrap(err, "failed to create new cipher")
+		return nil, err
 	}
 
 	// plaintext must be as long as ciphertext minus the length of the IV, which is the same as the AES block size
@@ -128,19 +118,34 @@ func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
 	return plaintext, nil
 }
 
+// EncryptLegacy uses the Secret to AES encrypt an arbitrary data block. This is intended only for legacy data such
+// as U2F keys. The returned data is the Base64-encoded IV and the Base64-encoded cipher text separated by a colon.
+func (k *ApiKey) EncryptLegacy(plaintext []byte) ([]byte, error) {
+	block, err := newCipherBlock(k.Secret)
+	if err != nil {
+		return nil, err
+	}
+
+	iv := make([]byte, aes.BlockSize)
+	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
+		return nil, fmt.Errorf("failed to create random data for initialization vector: %w", err)
+	}
+
+	ciphertext := make([]byte, len(plaintext))
+	stream := cipher.NewCTR(block, iv)
+	stream.XORKeyStream(ciphertext, plaintext)
+
+	ivBase64 := base64.StdEncoding.EncodeToString(iv)
+	cipherBase64 := base64.StdEncoding.EncodeToString(ciphertext)
+	return []byte(ivBase64 + ":" + cipherBase64), nil
+}
+
 // DecryptLegacy uses the Secret to AES decrypt an arbitrary data block. This is intended only for legacy data such
 // as U2F keys.
 func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
-	var sec []byte
-	var err error
-	sec, err = base64.StdEncoding.DecodeString(k.Secret)
+	block, err := newCipherBlock(k.Secret)
 	if err != nil {
-		sec = []byte(k.Secret)
-	}
-
-	block, err := aes.NewCipher(sec)
-	if err != nil {
-		return []byte{}, errors.Wrap(err, "failed to create new cipher")
+		return nil, err
 	}
 
 	// data was encrypted, then base64 encoded, then joined with a :, need to split
@@ -301,4 +306,21 @@ func NewApiKey(email string) (ApiKey, error) {
 		CreatedAt: int(time.Now().UTC().Unix() * 1000),
 	}
 	return key, nil
+}
+
+// newCipherBlock creates a new cipher.Block from a base64-encoded AES key. If the string is not valid base64 data, it
+// will be interpreted as binary data.
+func newCipherBlock(key string) (cipher.Block, error) {
+	var sec []byte
+	var err error
+	sec, err = base64.StdEncoding.DecodeString(key)
+	if err != nil {
+		sec = []byte(key)
+	}
+
+	block, err := aes.NewCipher(sec)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create new cipher: %w", err)
+	}
+	return block, nil
 }

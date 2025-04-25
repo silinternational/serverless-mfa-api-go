@@ -29,29 +29,14 @@
     },
     {
       "Action": [
-        "dynamodb:DescribeTable",
-        "dynamodb:Query",
-        "dynamodb:Scan",
-        "dynamodb:GetItem",
-        "dynamodb:PutItem"
-      ],
-      "Resource": [
-        "arn:aws:dynamodb:*:${aws_account}:table/${api_key_table}"
-      ],
-      "Effect": "Allow"
-    },
-    {
-      "Action": [
-        "dynamodb:DescribeTable",
         "dynamodb:Query",
         "dynamodb:Scan",
         "dynamodb:GetItem",
         "dynamodb:PutItem",
-        "dynamodb:UpdateItem",
         "dynamodb:DeleteItem"
       ],
       "Resource": [
-        "arn:aws:dynamodb:*:${aws_account}:table/${webauthn_table}"
+        ${table_arns}
       ],
       "Effect": "Allow"
     }

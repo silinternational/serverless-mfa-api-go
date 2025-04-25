@@ -14,5 +14,5 @@ Terraform is responsible to:
 ### Note about DynamoDB tables
 This repo is coded in a way to create the necessary tables and use the default names based on `app_name` and
 `app_env`. However, if this is being deployed into an environment with existing tables, the table names can be 
-overwritten using the `api_key_table` and `webauthn_table` variables, as well as the `create_api_key_table` and 
-`create_webauthn_table` variables set to `false`.
+overwritten using the `api_key_table`, `totp_table`, and `webauthn_table` variables, as well as the
+`create_api_key_table`, `create_totp_key_table`, and `create_webauthn_table` variables set to `false`.

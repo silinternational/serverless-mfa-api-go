@@ -395,7 +395,7 @@ paths:
               properties:
                 apiKeyValue:
                   type: string
-                  description: API Key ID
+                  description: API key ID
                   required: true
                   example: 0123456789012345678901234567890123456789
                 email:

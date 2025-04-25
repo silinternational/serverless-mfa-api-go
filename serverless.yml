@@ -15,6 +15,7 @@ provider:
     stage: ${sls:stage}
     namespace: ${self:service}_${sls:stage}
     API_KEY_TABLE: ${env:API_KEY_TABLE, "api-key"}
+    TOTP_TABLE: ${env:TOTP_TABLE, "totp"}
     WEBAUTHN_TABLE: ${env:WEBAUTHN_TABLE, "webauthn"}
 
   stackTags:

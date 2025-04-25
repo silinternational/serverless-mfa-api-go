@@ -31,6 +31,13 @@ createwebauthntable:
 		--attribute-definitions AttributeName=uuid,AttributeType=S \
 		--key-schema AttributeName=uuid,KeyType=HASH
 
+createtotptable:
+	AWS_ENDPOINT=http://localhost:8000 AWS_DEFAULT_REGION=local AWS_ACCESS_KEY_ID=abc123 AWS_SECRET_ACCESS_KEY=abc123 AWS_PAGER="" aws dynamodb create-table \
+		--table-name Totp \
+		--billing-mode PAY_PER_REQUEST \
+		--attribute-definitions AttributeName=uuid,AttributeType=S \
+		--key-schema AttributeName=uuid,KeyType=HASH
+
 # create ApiKey table with test key = EC7C2E16-5028-432F-8AF2-A79A64CF3BC1, secret = 1ED18444-7238-410B-A536-D6C15A3C
 createapikeytable:
 	AWS_ENDPOINT=http://localhost:8000 AWS_DEFAULT_REGION=local AWS_ACCESS_KEY_ID=abc123 AWS_SECRET_ACCESS_KEY=abc123 AWS_PAGER="" aws dynamodb create-table \

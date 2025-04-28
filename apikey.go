@@ -143,6 +143,10 @@ func (k *ApiKey) EncryptLegacy(plaintext []byte) ([]byte, error) {
 // DecryptLegacy uses the Secret to AES decrypt an arbitrary data block. This is intended only for legacy data such
 // as U2F keys.
 func (k *ApiKey) DecryptLegacy(ciphertext string) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+
 	block, err := newCipherBlock(k.Secret)
 	if err != nil {
 		return "", err

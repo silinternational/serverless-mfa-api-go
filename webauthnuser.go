@@ -249,27 +249,27 @@ func (u *WebauthnUser) Load() error {
 	}
 
 	if u.EncryptedAppId != "" {
-		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
+		appid, err := u.ApiKey.DecryptLegacy(u.EncryptedAppId)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt app id: %w", err)
 		}
-		u.AppId = string(appid)
+		u.AppId = appid
 	}
 
 	if u.EncryptedPublicKey != "" {
-		publicKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
+		publicKey, err := u.ApiKey.DecryptLegacy(u.EncryptedPublicKey)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt public key: %w", err)
 		}
-		u.PublicKey = string(publicKey)
+		u.PublicKey = publicKey
 	}
 
 	if u.EncryptedKeyHandle != "" {
-		keyHandle, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
+		keyHandle, err := u.ApiKey.DecryptLegacy(u.EncryptedKeyHandle)
 		if err != nil {
 			return fmt.Errorf("failed to decrypt key handle: %w", err)
 		}
-		u.KeyHandle = string(keyHandle)
+		u.KeyHandle = keyHandle
 	}
 
 	return nil

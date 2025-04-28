@@ -142,30 +142,30 @@ func (k *ApiKey) EncryptLegacy(plaintext []byte) ([]byte, error) {
 
 // DecryptLegacy uses the Secret to AES decrypt an arbitrary data block. This is intended only for legacy data such
 // as U2F keys.
-func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
+func (k *ApiKey) DecryptLegacy(ciphertext string) (string, error) {
 	block, err := newCipherBlock(k.Secret)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// data was encrypted, then base64 encoded, then joined with a :, need to split
 	// on :, then decode first part as iv and second as encrypted content
-	parts := bytes.Split(ciphertext, []byte(":"))
+	parts := bytes.Split([]byte(ciphertext), []byte(":"))
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("ciphertext does not look like legacy data")
+		return "", fmt.Errorf("ciphertext does not look like legacy data")
 	}
 
 	iv := make([]byte, aes.BlockSize)
 	_, err = base64.StdEncoding.Decode(iv, parts[0])
 	if err != nil {
 		fmt.Printf("failed to decode iv: %s\n", err)
-		return nil, err
+		return "", err
 	}
 
 	decodedCipher, err := base64.StdEncoding.DecodeString(string(parts[1]))
 	if err != nil {
 		fmt.Printf("failed to decode ciphertext: %s\n", err)
-		return nil, err
+		return "", err
 	}
 
 	// plaintext will hold decrypted content, it must be at least as long
@@ -176,7 +176,7 @@ func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
 	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(plaintext, decodedCipher)
 
-	return plaintext, nil
+	return string(plaintext), nil
 }
 
 // Activate an ApiKey. Creates a random string for the key secret and updates the Secret, HashedSecret, and

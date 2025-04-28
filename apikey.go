@@ -1,7 +1,6 @@
 package mfa
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -12,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -150,19 +150,18 @@ func (k *ApiKey) DecryptLegacy(ciphertext string) (string, error) {
 
 	// data was encrypted, then base64 encoded, then joined with a :, need to split
 	// on :, then decode first part as iv and second as encrypted content
-	parts := bytes.Split([]byte(ciphertext), []byte(":"))
+	parts := strings.Split(ciphertext, ":")
 	if len(parts) != 2 {
 		return "", fmt.Errorf("ciphertext does not look like legacy data")
 	}
 
-	iv := make([]byte, aes.BlockSize)
-	_, err = base64.StdEncoding.Decode(iv, parts[0])
+	iv, err := base64.StdEncoding.DecodeString(parts[0])
 	if err != nil {
 		fmt.Printf("failed to decode iv: %s\n", err)
 		return "", err
 	}
 
-	decodedCipher, err := base64.StdEncoding.DecodeString(string(parts[1]))
+	decodedCipher, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
 		fmt.Printf("failed to decode ciphertext: %s\n", err)
 		return "", err

@@ -67,7 +67,8 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 		WebAuthnClient: config.WebAuthnClient,
 		ApiKey:         apiKey0,
 		ApiKeyValue:    apiKey0.Key,
-		Credentials:    []webauthn.Credential{},
+		// Credentials:    []webauthn.Credential{},
+		// SessionData:    webauthn.SessionData{},
 	}
 
 	testUser1 := testUser0
@@ -88,14 +89,15 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 
 	// add dummy legacy u2f data to first user
 	testUser0.AppId = "someAppId"
-	testUser0.EncryptedAppId = "someEncryptedAppId"
+	testUser0.EncryptedAppId = mustEncryptLegacy(apiKey0, testUser0.AppId)
 	testUser0.KeyHandle = "someKeyHandle"
-	testUser0.EncryptedKeyHandle = "someEncryptedKeyHandle"
+	testUser0.EncryptedKeyHandle = mustEncryptLegacy(apiKey0, testUser0.KeyHandle)
 	testUser0.PublicKey = "somePublicKey"
-	testUser0.EncryptedPublicKey = "someEncryptedPublicKey"
+	testUser0.EncryptedPublicKey = mustEncryptLegacy(apiKey0, testUser0.PublicKey)
 
-	for _, u := range []WebauthnUser{testUser0, testUser1, testUser2} {
-		ms.NoError(u.encryptAndStoreCredentials(), "failed saving initial test user")
+	users := []WebauthnUser{testUser0, testUser1, testUser2}
+	for i := range users {
+		ms.NoError(users[i].encryptAndStoreCredentials(), "failed saving initial test user")
 	}
 
 	params := &dynamodb.ScanInput{
@@ -107,5 +109,11 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 	ms.NoError(err, "failed to scan storage for new user entries")
 	ms.Equal(int32(3), results.Count, "Count:3", "initial data wasn't saved properly")
 
-	return []WebauthnUser{testUser0, testUser1, testUser2}
+	return users
+}
+
+func mustEncryptLegacy(key ApiKey, plaintext string) string {
+	ciphertext, err := key.EncryptLegacy([]byte(plaintext))
+	must(err)
+	return string(ciphertext)
 }

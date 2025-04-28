@@ -47,7 +47,7 @@ type finishLoginResponse struct {
 
 // BeginRegistration processes the first half of the Webauthn Registration flow. It is the handler for the
 // "POST /webauthn/register" endpoint, initiated by the client when creation of a new passkey is requested.
-func BeginRegistration(w http.ResponseWriter, r *http.Request) {
+func (a *App) BeginRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
@@ -75,7 +75,7 @@ func BeginRegistration(w http.ResponseWriter, r *http.Request) {
 
 // FinishRegistration processes the last half of the Webauthn Registration flow. It is the handler for the
 // "PUT /webauthn/register" endpoint, initiated by the client with information encrypted by the new private key.
-func FinishRegistration(w http.ResponseWriter, r *http.Request) {
+func (a *App) FinishRegistration(w http.ResponseWriter, r *http.Request) {
 	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
@@ -97,7 +97,7 @@ func FinishRegistration(w http.ResponseWriter, r *http.Request) {
 
 // BeginLogin processes the first half of the Webauthn Authentication flow. It is the handler for the
 // "POST /webauthn/login" endpoint, initiated by the client at the beginning of a login request.
-func BeginLogin(w http.ResponseWriter, r *http.Request) {
+func (a *App) BeginLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
@@ -117,7 +117,7 @@ func BeginLogin(w http.ResponseWriter, r *http.Request) {
 
 // FinishLogin processes the second half of the Webauthn Authentication flow. It is the handler for the
 // "PUT /webauthn/login" endpoint, initiated by the client with login data signed with the private key.
-func FinishLogin(w http.ResponseWriter, r *http.Request) {
+func (a *App) FinishLogin(w http.ResponseWriter, r *http.Request) {
 	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
@@ -142,7 +142,7 @@ func FinishLogin(w http.ResponseWriter, r *http.Request) {
 
 // DeleteUser is the handler for the "DELETE /webauthn/user" endpoint. It removes a user and any stored passkeys owned
 // by the user.
-func DeleteUser(w http.ResponseWriter, r *http.Request) {
+func (a *App) DeleteUser(w http.ResponseWriter, r *http.Request) {
 	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)
@@ -162,7 +162,7 @@ func DeleteUser(w http.ResponseWriter, r *http.Request) {
 // DeleteCredential is the handler for the "DELETE /webauthn/credential/{credID}" endpoint. It removes a single
 // passkey identified by "credID", which is the key_handle_hash returned by the FinishRegistration endpoint, or "u2f"
 // if it is a legacy U2F credential.
-func DeleteCredential(w http.ResponseWriter, r *http.Request) {
+func (a *App) DeleteCredential(w http.ResponseWriter, r *http.Request) {
 	user, err := getWebauthnUser(r)
 	if err != nil {
 		jsonResponse(w, err, http.StatusBadRequest)

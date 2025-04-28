@@ -169,8 +169,5 @@ func requestWithUser(body any, user User) *http.Request {
 	req := &http.Request{Body: io.NopCloser(bytes.NewReader(jsonBody))}
 	ctx := context.WithValue(req.Context(), UserContextKey, user)
 
-	storage, err := NewStorage(testAwsConfig())
-	ctx = context.WithValue(ctx, StorageContextKey, storage)
-
 	return req.WithContext(ctx)
 }

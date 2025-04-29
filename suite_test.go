@@ -12,6 +12,7 @@ import (
 type MfaSuite struct {
 	suite.Suite
 	*require.Assertions
+	app *App
 }
 
 func (ms *MfaSuite) SetupTest() {
@@ -24,7 +25,9 @@ func (ms *MfaSuite) SetupTest() {
 
 // Test_MfaSuite runs the test suite
 func Test_MfaSuite(t *testing.T) {
-	ms := &MfaSuite{}
+	ms := &MfaSuite{
+		app: NewApp(testEnvConfig(testAwsConfig())),
+	}
 
 	suite.Run(t, ms)
 }

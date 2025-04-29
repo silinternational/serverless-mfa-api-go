@@ -207,7 +207,7 @@ func (k *ApiKey) Activate() error {
 
 // ActivateApiKey is the handler for the POST /api-key/activate endpoint. It creates the key secret and updates the
 // database record.
-func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
+func (a *App) ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		ApiKeyValue string `json:"apiKeyValue"`
 		Email       string `json:"email"`
@@ -229,13 +229,7 @@ func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
-		return
-	}
-
-	newKey := ApiKey{Key: requestBody.ApiKeyValue, Store: storage}
+	newKey := ApiKey{Key: requestBody.ApiKeyValue, Store: a.db}
 	err = newKey.Load()
 	if err != nil {
 		jsonResponse(w, fmt.Errorf("key not found: %s", err), http.StatusNotFound)
@@ -258,7 +252,7 @@ func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateApiKey is the handler for the POST /api-key endpoint. It creates a new API Key and saves it to the database.
-func CreateApiKey(w http.ResponseWriter, r *http.Request) {
+func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		Email string `json:"email"`
 	}
@@ -280,13 +274,7 @@ func CreateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
-		return
-	}
-	key.Store = storage
-
+	key.Store = a.db
 	err = key.Save()
 	if err != nil {
 		jsonResponse(w, fmt.Errorf("failed to save key: %s", err), http.StatusInternalServerError)

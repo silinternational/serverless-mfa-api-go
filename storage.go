@@ -11,8 +11,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 )
 
-const StorageContextKey = "storage"
-
 var tableNameMissingError = errors.New("table name must not be empty")
 
 // Storage provides wrapper methods for interacting with DynamoDB

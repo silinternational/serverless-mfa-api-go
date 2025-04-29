@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -30,7 +29,7 @@ func main() {
 	// ListenAndServe starts an HTTP server with a given address and
 	// handler defined in NewRouter.
 	log.Println("Starting service on port 8080")
-	router := newRouter()
+	router := newRouter(mfa.NewApp(envConfig))
 	log.Fatal(http.ListenAndServe(":8080", router))
 }
 
@@ -42,64 +41,60 @@ type route struct {
 	HandlerFunc http.HandlerFunc
 }
 
-// Define our routes.
-var routes = []route{
-	{
-		Name:        "CreateApiKey",
-		Method:      "POST",
-		Pattern:     "/api-key",
-		HandlerFunc: mfa.CreateApiKey,
-	},
-	{
-		Name:        "ActivateApiKey",
-		Method:      "POST",
-		Pattern:     "/api-key/activate",
-		HandlerFunc: mfa.ActivateApiKey,
-	},
-	{
-		Name:        "BeginRegistration",
-		Method:      "POST",
-		Pattern:     "/webauthn/register",
-		HandlerFunc: mfa.BeginRegistration,
-	},
-	{
-		Name:        "FinishRegistration",
-		Method:      "PUT",
-		Pattern:     "/webauthn/register",
-		HandlerFunc: mfa.FinishRegistration,
-	},
-	{
-		Name:        "BeginLogin",
-		Method:      "POST",
-		Pattern:     "/webauthn/login",
-		HandlerFunc: mfa.BeginLogin,
-	},
-	{
-		Name:        "FinishLogin",
-		Method:      "PUT",
-		Pattern:     "/webauthn/login",
-		HandlerFunc: mfa.FinishLogin,
-	},
-	{
-		Name:        "DeleteUser",
-		Method:      "DELETE",
-		Pattern:     "/webauthn/user",
-		HandlerFunc: mfa.DeleteUser,
-	},
-	{ // This expects a path param that is the id that was previously returned
-		// as the key_handle_hash from the FinishRegistration call.
-		// Alternatively, if the id param indicates that a legacy U2F key should be removed
-		//	 (e.g. by matching the string "u2f")
-		//   then that user is saved with all of its legacy u2f fields blanked out.
-		Name:        "DeleteCredential",
-		Method:      "DELETE",
-		Pattern:     fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),
-		HandlerFunc: mfa.DeleteCredential,
-	},
+// getRoutes returns a list of routes for the server
+func getRoutes(app *mfa.App) []route {
+	return []route{
+		{
+			Name:        "ActivateApiKey",
+			Method:      "POST",
+			Pattern:     "/api-key/activate",
+			HandlerFunc: app.ActivateApiKey,
+		},
+		{
+			Name:        "CreateApiKey",
+			Method:      "POST",
+			Pattern:     "/api-key",
+			HandlerFunc: app.CreateApiKey,
+		},
+		{
+			Name:        "FinishRegistration",
+			Method:      "PUT",
+			Pattern:     "/webauthn/register",
+			HandlerFunc: app.FinishRegistration,
+		},
+		{
+			Name:        "BeginLogin",
+			Method:      "POST",
+			Pattern:     "/webauthn/login",
+			HandlerFunc: app.BeginLogin,
+		},
+		{
+			Name:        "FinishLogin",
+			Method:      "PUT",
+			Pattern:     "/webauthn/login",
+			HandlerFunc: app.FinishLogin,
+		},
+		{
+			Name:        "DeleteUser",
+			Method:      "DELETE",
+			Pattern:     "/webauthn/user",
+			HandlerFunc: app.DeleteUser,
+		},
+		{ // This expects a path param that is the id that was previously returned
+			// as the key_handle_hash from the FinishRegistration call.
+			// Alternatively, if the id param indicates that a legacy U2F key should be removed
+			//	 (e.g. by matching the string "u2f")
+			//   then that user is saved with all of its legacy u2f fields blanked out.
+			Name:        "DeleteCredential",
+			Method:      "DELETE",
+			Pattern:     fmt.Sprintf("/webauthn/credential/{%s}", mfa.IDParam),
+			HandlerFunc: app.DeleteCredential,
+		},
+	}
 }
 
 // newRouter forms a new mux router, see https://github.com/gorilla/mux.
-func newRouter() *mux.Router {
+func newRouter(app *mfa.App) *mux.Router {
 	// Create a basic router.
 	router := mux.NewRouter().StrictSlash(true)
 
@@ -107,11 +102,8 @@ func newRouter() *mux.Router {
 	// also adds user to context
 	router.Use(authenticationMiddleware)
 
-	// add storage client to the request context
-	router.Use(storageMiddleware)
-
 	// Assign the handlers to run when endpoints are called.
-	for _, route := range routes {
+	for _, route := range getRoutes(app) {
 		router.Methods(route.Method).Path(route.Pattern).Name(route.Name).Handler(route.HandlerFunc)
 	}
 
@@ -131,17 +123,4 @@ func notFound(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewEncoder(w).Encode(notFound); err != nil {
 		log.Printf("ERROR could not marshal not found message to JSON: %s", err)
 	}
-}
-
-// storageMiddleware initializes a storage client and adds it to the request context
-func storageMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		storage, err := mfa.NewStorage(envConfig.AWSConfig)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("error initializing storage: %s", err), http.StatusInternalServerError)
-			return
-		}
-		ctx := context.WithValue(r.Context(), mfa.StorageContextKey, storage)
-		next.ServeHTTP(w, r.WithContext(ctx))
-	})
 }

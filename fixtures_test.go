@@ -67,8 +67,6 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 		WebAuthnClient: config.WebAuthnClient,
 		ApiKey:         apiKey0,
 		ApiKeyValue:    apiKey0.Key,
-		// Credentials:    []webauthn.Credential{},
-		// SessionData:    webauthn.SessionData{},
 	}
 
 	testUser1 := testUser0

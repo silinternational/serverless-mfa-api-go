@@ -161,8 +161,6 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	ctxWithUserID := context.WithValue(reqWithUserID.Context(), UserContextKey, testUser)
 	reqWithUserID = *reqWithUserID.WithContext(ctxWithUserID)
 
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUserID)
-
 	tests := []struct {
 		name             string
 		httpWriter       *lambdaResponseWriter
@@ -302,7 +300,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	attestObject2 := u2fsim.GetAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2, localAppID)
 	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientDataStr, attestObject2, &testUser)
 
-	localStorage.Store(envConfig.WebauthnTable, &testUser)
+	must(localStorage.Store(envConfig.WebauthnTable, &testUser))
 
 	tests := []struct {
 		name             string
@@ -469,7 +467,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	ctxWithUserCredentials := context.WithValue(reqWithCredentials.Context(), UserContextKey, userWithCreds)
 	reqWithCredentials = *reqWithCredentials.WithContext(ctxWithUserCredentials)
 
-	localStorage.Store(envConfig.WebauthnTable, userWithCreds)
+	must(localStorage.Store(envConfig.WebauthnTable, userWithCreds))
 
 	tests := []struct {
 		name             string
@@ -630,8 +628,6 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, userWithCreds)
 	reqWithBody1 = *reqWithBody1.WithContext(ctxUserCred1)
 
-	localStorage.Store(ms.app.GetConfig().WebauthnTable, ctxUserCred1)
-
 	signature2 := GenerateAuthenticationSig(authDataBytes2, cdBytes, privateKey1)
 
 	assertionResponse2 := `{
@@ -652,8 +648,6 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	reqWithBody2 := http.Request{Body: body2}
 	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, userWithCreds)
 	reqWithBody2 = *reqWithBody2.WithContext(ctxUserCred2)
-
-	localStorage.Store(envConfig.WebauthnTable, ctxUserCred2)
 
 	tests := []struct {
 		name             string
@@ -864,7 +858,6 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 
 			ctxWithUser := context.WithValue(request.Context(), UserContextKey, tt.user)
 			request = request.WithContext(ctxWithUser)
-			baseConfigs.Storage.Store(baseConfigs.EnvConfig.WebauthnTable, ctxWithUser)
 
 			response := httptest.NewRecorder()
 			Router(ms.app).ServeHTTP(response, request)
@@ -886,7 +879,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			}
 
 			gotUser := tt.user
-			gotUser.Load()
+			must(gotUser.Load())
 
 			ms.Len(gotUser.Credentials, len(tt.wantCredIDs), "incorrect remaining credential ids")
 

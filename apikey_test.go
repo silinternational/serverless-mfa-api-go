@@ -144,14 +144,14 @@ func TestApiKey_EncryptDecrypt(t *testing.T) {
 }
 
 func (ms *MfaSuite) TestApiKeyEncryptDecryptLegacy() {
-	plaintext := []byte("this is a plaintext string to be encrypted")
+	plaintext := "this is a plaintext string to be encrypted"
 	key := &ApiKey{Secret: "ED86600E-3DBF-4C23-A0DA-9C55D448"}
 
 	encrypted, err := key.EncryptLegacy(plaintext)
 	ms.NoError(err)
-	decrypted, err := key.DecryptLegacy(string(encrypted))
+	decrypted, err := key.DecryptLegacy(encrypted)
 	ms.NoError(err)
-	ms.Equal(plaintext, []byte(decrypted))
+	ms.Equal(plaintext, decrypted)
 }
 
 func (ms *MfaSuite) TestApiKeyActivate() {

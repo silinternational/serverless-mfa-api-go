@@ -149,9 +149,9 @@ func (ms *MfaSuite) TestApiKeyEncryptDecryptLegacy() {
 
 	encrypted, err := key.EncryptLegacy(plaintext)
 	ms.NoError(err)
-	decrypted, err := key.DecryptLegacy(encrypted)
+	decrypted, err := key.DecryptLegacy(string(encrypted))
 	ms.NoError(err)
-	ms.Equal(plaintext, decrypted)
+	ms.Equal(plaintext, []byte(decrypted))
 }
 
 func (ms *MfaSuite) TestApiKeyActivate() {

@@ -111,7 +111,7 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 }
 
 func mustEncryptLegacy(key ApiKey, plaintext string) string {
-	ciphertext, err := key.EncryptLegacy([]byte(plaintext))
+	ciphertext, err := key.EncryptLegacy(plaintext)
 	must(err)
-	return string(ciphertext)
+	return ciphertext
 }

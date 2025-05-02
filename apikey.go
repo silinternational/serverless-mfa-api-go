@@ -1,7 +1,6 @@
 package mfa
 
 import (
-	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -12,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
@@ -120,52 +120,55 @@ func (k *ApiKey) DecryptData(ciphertext []byte) ([]byte, error) {
 
 // EncryptLegacy uses the Secret to AES encrypt an arbitrary data block. This is intended only for legacy data such
 // as U2F keys. The returned data is the Base64-encoded IV and the Base64-encoded cipher text separated by a colon.
-func (k *ApiKey) EncryptLegacy(plaintext []byte) ([]byte, error) {
+func (k *ApiKey) EncryptLegacy(plaintext string) (string, error) {
 	block, err := newCipherBlock(k.Secret)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	iv := make([]byte, aes.BlockSize)
 	if _, err = io.ReadFull(rand.Reader, iv); err != nil {
-		return nil, fmt.Errorf("failed to create random data for initialization vector: %w", err)
+		return "", fmt.Errorf("failed to create random data for initialization vector: %w", err)
 	}
 
 	ciphertext := make([]byte, len(plaintext))
 	stream := cipher.NewCTR(block, iv)
-	stream.XORKeyStream(ciphertext, plaintext)
+	stream.XORKeyStream(ciphertext, []byte(plaintext))
 
 	ivBase64 := base64.StdEncoding.EncodeToString(iv)
 	cipherBase64 := base64.StdEncoding.EncodeToString(ciphertext)
-	return []byte(ivBase64 + ":" + cipherBase64), nil
+	return ivBase64 + ":" + cipherBase64, nil
 }
 
 // DecryptLegacy uses the Secret to AES decrypt an arbitrary data block. This is intended only for legacy data such
 // as U2F keys.
-func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
+func (k *ApiKey) DecryptLegacy(ciphertext string) (string, error) {
+	if ciphertext == "" {
+		return "", nil
+	}
+
 	block, err := newCipherBlock(k.Secret)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
 
 	// data was encrypted, then base64 encoded, then joined with a :, need to split
 	// on :, then decode first part as iv and second as encrypted content
-	parts := bytes.Split(ciphertext, []byte(":"))
+	parts := strings.Split(ciphertext, ":")
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("ciphertext does not look like legacy data")
+		return "", fmt.Errorf("ciphertext does not look like legacy data")
 	}
 
-	iv := make([]byte, aes.BlockSize)
-	_, err = base64.StdEncoding.Decode(iv, parts[0])
+	iv, err := base64.StdEncoding.DecodeString(parts[0])
 	if err != nil {
 		fmt.Printf("failed to decode iv: %s\n", err)
-		return nil, err
+		return "", err
 	}
 
-	decodedCipher, err := base64.StdEncoding.DecodeString(string(parts[1]))
+	decodedCipher, err := base64.StdEncoding.DecodeString(parts[1])
 	if err != nil {
 		fmt.Printf("failed to decode ciphertext: %s\n", err)
-		return nil, err
+		return "", err
 	}
 
 	// plaintext will hold decrypted content, it must be at least as long
@@ -176,7 +179,7 @@ func (k *ApiKey) DecryptLegacy(ciphertext []byte) ([]byte, error) {
 	stream := cipher.NewCTR(block, iv)
 	stream.XORKeyStream(plaintext, decodedCipher)
 
-	return plaintext, nil
+	return string(plaintext), nil
 }
 
 // Activate an ApiKey. Creates a random string for the key secret and updates the Secret, HashedSecret, and
@@ -204,7 +207,7 @@ func (k *ApiKey) Activate() error {
 
 // ActivateApiKey is the handler for the POST /api-key/activate endpoint. It creates the key secret and updates the
 // database record.
-func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
+func (a *App) ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		ApiKeyValue string `json:"apiKeyValue"`
 		Email       string `json:"email"`
@@ -226,13 +229,7 @@ func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
-		return
-	}
-
-	newKey := ApiKey{Key: requestBody.ApiKeyValue, Store: storage}
+	newKey := ApiKey{Key: requestBody.ApiKeyValue, Store: a.db}
 	err = newKey.Load()
 	if err != nil {
 		jsonResponse(w, fmt.Errorf("key not found: %s", err), http.StatusNotFound)
@@ -255,7 +252,7 @@ func ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 }
 
 // CreateApiKey is the handler for the POST /api-key endpoint. It creates a new API Key and saves it to the database.
-func CreateApiKey(w http.ResponseWriter, r *http.Request) {
+func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		Email string `json:"email"`
 	}
@@ -277,13 +274,7 @@ func CreateApiKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage, ok := r.Context().Value(StorageContextKey).(*Storage)
-	if !ok {
-		jsonResponse(w, fmt.Errorf("no storage client found in context"), http.StatusInternalServerError)
-		return
-	}
-	key.Store = storage
-
+	key.Store = a.db
 	err = key.Save()
 	if err != nil {
 		jsonResponse(w, fmt.Errorf("failed to save key: %s", err), http.StatusInternalServerError)

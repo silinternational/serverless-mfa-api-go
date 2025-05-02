@@ -144,7 +144,7 @@ func TestApiKey_EncryptDecrypt(t *testing.T) {
 }
 
 func (ms *MfaSuite) TestApiKeyEncryptDecryptLegacy() {
-	plaintext := []byte("this is a plaintext string to be encrypted")
+	plaintext := "this is a plaintext string to be encrypted"
 	key := &ApiKey{Secret: "ED86600E-3DBF-4C23-A0DA-9C55D448"}
 
 	encrypted, err := key.EncryptLegacy(plaintext)
@@ -267,7 +267,7 @@ func (ms *MfaSuite) TestActivateApiKey() {
 		ms.Run(tt.name, func() {
 			res := &lambdaResponseWriter{Headers: http.Header{}}
 			req := requestWithUser(tt.body, ApiKey{Store: localStorage})
-			ActivateApiKey(res, req)
+			ms.app.ActivateApiKey(res, req)
 
 			if tt.wantStatus != http.StatusOK {
 				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("ActivateApiKey response: %s", res.Body))
@@ -318,7 +318,7 @@ func (ms *MfaSuite) TestCreateApiKey() {
 		ms.Run(tt.name, func() {
 			res := &lambdaResponseWriter{Headers: http.Header{}}
 			req := requestWithUser(tt.body, ApiKey{Store: localStorage})
-			CreateApiKey(res, req)
+			ms.app.CreateApiKey(res, req)
 
 			if tt.wantError != "" {
 				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("CreateApiKey response: %s", res.Body))

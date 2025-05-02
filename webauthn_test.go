@@ -111,10 +111,7 @@ func Test_Parse(t *testing.T) {
 }
 
 func (ms *MfaSuite) Test_BeginRegistration() {
-	awsConfig := testAwsConfig()
-	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(awsConfig)
-	ms.NoError(err, "failed creating local storage for test")
+	localStorage := ms.app.GetDB()
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
 	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
@@ -163,8 +160,6 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	reqWithUserID := http.Request{}
 	ctxWithUserID := context.WithValue(reqWithUserID.Context(), UserContextKey, testUser)
 	reqWithUserID = *reqWithUserID.WithContext(ctxWithUserID)
-
-	localStorage.Store(envConfig.WebauthnTable, ctxWithUserID)
 
 	tests := []struct {
 		name             string
@@ -224,7 +219,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 	}
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
-			BeginRegistration(tt.httpWriter, &tt.httpReq)
+			ms.app.BeginRegistration(tt.httpWriter, &tt.httpReq)
 
 			gotBody := string(tt.httpWriter.Body)
 			for _, w := range tt.wantBodyContains {
@@ -236,7 +231,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 			}
 
 			params := &dynamodb.ScanInput{
-				TableName: aws.String(envCfg.WebauthnTable),
+				TableName: aws.String(ms.app.GetConfig().WebauthnTable),
 			}
 
 			ctx := context.Background()
@@ -249,10 +244,7 @@ func (ms *MfaSuite) Test_BeginRegistration() {
 }
 
 func (ms *MfaSuite) Test_FinishRegistration() {
-	awsConfig := testAwsConfig()
-	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(awsConfig)
-	ms.NoError(err, "failed creating local storage for test")
+	localStorage := ms.app.GetDB()
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
 	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
@@ -308,7 +300,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	attestObject2 := u2fsim.GetAttestationObject(authDataBytes2, clientData, keyHandle2, privateKey2, localAppID)
 	reqWithBody2 := getTestAssertionRequest(credID, authData2, clientDataStr, attestObject2, &testUser)
 
-	localStorage.Store(envConfig.WebauthnTable, &testUser)
+	must(localStorage.Store(envConfig.WebauthnTable, &testUser))
 
 	tests := []struct {
 		name             string
@@ -363,7 +355,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
 			httpWriter := newLambdaResponseWriter()
-			FinishRegistration(httpWriter, &tt.httpReq)
+			ms.app.FinishRegistration(httpWriter, &tt.httpReq)
 
 			gotBody := string(httpWriter.Body)
 			for _, w := range tt.wantBodyContains {
@@ -375,7 +367,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 			}
 
 			params := &dynamodb.ScanInput{
-				TableName: aws.String(envCfg.WebauthnTable),
+				TableName: aws.String(ms.app.GetConfig().WebauthnTable),
 			}
 
 			ctx := context.Background()
@@ -406,11 +398,7 @@ func (ms *MfaSuite) Test_FinishRegistration() {
 }
 
 func (ms *MfaSuite) Test_BeginLogin() {
-	awsConfig := testAwsConfig()
-	envCfg := testEnvConfig(awsConfig)
-	localStorage, err := NewStorage(awsConfig)
-	ms.NoError(err, "failed creating local storage for test")
-
+	localStorage := ms.app.GetDB()
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
 	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
 
@@ -479,7 +467,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	ctxWithUserCredentials := context.WithValue(reqWithCredentials.Context(), UserContextKey, userWithCreds)
 	reqWithCredentials = *reqWithCredentials.WithContext(ctxWithUserCredentials)
 
-	localStorage.Store(envConfig.WebauthnTable, userWithCreds)
+	must(localStorage.Store(envConfig.WebauthnTable, userWithCreds))
 
 	tests := []struct {
 		name             string
@@ -522,7 +510,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 	}
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
-			BeginLogin(tt.httpWriter, &tt.httpReq)
+			ms.app.BeginLogin(tt.httpWriter, &tt.httpReq)
 
 			gotBody := string(tt.httpWriter.Body)
 			for _, w := range tt.wantBodyContains {
@@ -534,7 +522,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 			}
 
 			params := &dynamodb.ScanInput{
-				TableName: aws.String(envCfg.WebauthnTable),
+				TableName: aws.String(ms.app.GetConfig().WebauthnTable),
 			}
 
 			ctx := context.Background()
@@ -547,9 +535,7 @@ func (ms *MfaSuite) Test_BeginLogin() {
 }
 
 func (ms *MfaSuite) Test_FinishLogin() {
-	awsConfig := testAwsConfig()
-	localStorage, err := NewStorage(awsConfig)
-	ms.NoError(err, "failed creating local storage for test")
+	localStorage := ms.app.GetDB()
 
 	apiKeyKey := base64.StdEncoding.EncodeToString([]byte("1234567890123456"))
 	apiKeySec := base64.StdEncoding.EncodeToString([]byte("123456789012345678901234"))
@@ -642,8 +628,6 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	ctxUserCred1 := context.WithValue(reqWithBody1.Context(), UserContextKey, userWithCreds)
 	reqWithBody1 = *reqWithBody1.WithContext(ctxUserCred1)
 
-	localStorage.Store(envConfig.WebauthnTable, ctxUserCred1)
-
 	signature2 := GenerateAuthenticationSig(authDataBytes2, cdBytes, privateKey1)
 
 	assertionResponse2 := `{
@@ -664,8 +648,6 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	reqWithBody2 := http.Request{Body: body2}
 	ctxUserCred2 := context.WithValue(reqWithBody2.Context(), UserContextKey, userWithCreds)
 	reqWithBody2 = *reqWithBody2.WithContext(ctxUserCred2)
-
-	localStorage.Store(envConfig.WebauthnTable, ctxUserCred2)
 
 	tests := []struct {
 		name             string
@@ -697,7 +679,7 @@ func (ms *MfaSuite) Test_FinishLogin() {
 	for _, tt := range tests {
 		ms.T().Run(tt.name, func(t *testing.T) {
 			httpWriter := newLambdaResponseWriter()
-			FinishLogin(httpWriter, &tt.httpReq)
+			ms.app.FinishLogin(httpWriter, &tt.httpReq)
 
 			gotBody := string(httpWriter.Body)
 
@@ -763,12 +745,12 @@ func Test_GetPublicKeyAsBytes(t *testing.T) {
 	assert.Equal(want, got, "incorrect public Key")
 }
 
-func Router() *mux.Router {
+func Router(app *App) *mux.Router {
 	router := mux.NewRouter()
-	router.HandleFunc(fmt.Sprintf("/webauthn/credential/{%s}", IDParam), DeleteCredential).Methods("DELETE")
+	router.HandleFunc(fmt.Sprintf("/webauthn/credential/{%s}", IDParam), app.DeleteCredential).Methods("DELETE")
 	// Ensure a request without an id gets handled properly
-	router.HandleFunc("/webauthn/credential/", DeleteCredential).Methods("DELETE")
-	router.HandleFunc("/webauthn/credential", DeleteCredential).Methods("DELETE")
+	router.HandleFunc("/webauthn/credential/", app.DeleteCredential).Methods("DELETE")
+	router.HandleFunc("/webauthn/credential", app.DeleteCredential).Methods("DELETE")
 
 	// authenticate request based on api key and secret in headers
 	// also adds user to context
@@ -876,10 +858,9 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 
 			ctxWithUser := context.WithValue(request.Context(), UserContextKey, tt.user)
 			request = request.WithContext(ctxWithUser)
-			baseConfigs.Storage.Store(baseConfigs.EnvConfig.WebauthnTable, ctxWithUser)
 
 			response := httptest.NewRecorder()
-			Router().ServeHTTP(response, request)
+			Router(ms.app).ServeHTTP(response, request)
 			ms.Equal(tt.wantStatus, response.Code, "incorrect http status")
 
 			if tt.wantStatus != http.StatusNoContent {
@@ -898,7 +879,7 @@ func (ms *MfaSuite) Test_DeleteCredential() {
 			}
 
 			gotUser := tt.user
-			gotUser.Load()
+			must(gotUser.Load())
 
 			ms.Len(gotUser.Credentials, len(tt.wantCredIDs), "incorrect remaining credential ids")
 

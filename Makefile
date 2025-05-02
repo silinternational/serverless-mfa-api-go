@@ -12,7 +12,7 @@ app:
 	docker compose rm -f app
 	docker compose up -d app
 
-test: clean dbinit
+test: clean db
 	docker compose run --rm app go test ./...
 
 db:

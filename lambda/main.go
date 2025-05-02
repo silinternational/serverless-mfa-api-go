@@ -71,22 +71,16 @@ func addDeleteCredentialParamForMux(r *http.Request, key, value string) *http.Re
 func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 	r := httpRequestFromProxyRequest(ctx, req)
 
-	storage, err := mfa.NewStorage(envConfig.AWSConfig)
-	if err != nil {
-		return clientError(http.StatusInternalServerError, fmt.Sprintf("error initializing storage: %s", err))
-	}
-	newCtx := context.WithValue(r.Context(), mfa.StorageContextKey, storage)
+	app := mfa.NewApp(envConfig)
 
-	var user mfa.User
 	if !strings.HasPrefix(r.URL.Path, "/api-key") {
-		user, err = mfa.AuthenticateRequest(r)
+		user, err := mfa.AuthenticateRequest(r)
 		if err != nil {
 			return clientError(http.StatusUnauthorized, fmt.Sprintf("unable to authenticate request: %s", err))
 		}
-		newCtx = context.WithValue(newCtx, mfa.UserContextKey, user)
+		newCtx := context.WithValue(r.Context(), mfa.UserContextKey, user)
+		r = r.WithContext(newCtx)
 	}
-
-	r = r.WithContext(newCtx)
 
 	// Use custom lambda http.ResponseWriter
 	w := newLambdaResponseWriter()
@@ -100,26 +94,26 @@ func handler(ctx context.Context, req events.APIGatewayProxyRequest) (events.API
 	if credIdToDelete, ok := credentialToDelete(req); ok {
 		// add the id to the context in order for mux to retrieve it
 		r = addDeleteCredentialParamForMux(r, mfa.IDParam, credIdToDelete)
-		mfa.DeleteCredential(w, r)
+		app.DeleteCredential(w, r)
 		// Routes other than /webauthn/delete/credential/abc213
 	} else {
 		route := strings.ToLower(fmt.Sprintf("%s %s", req.HTTPMethod, req.Path))
 
 		switch route {
 		case "post /api-key":
-			mfa.CreateApiKey(w, r)
+			app.CreateApiKey(w, r)
 		case "post /api-key/activate":
-			mfa.ActivateApiKey(w, r)
+			app.ActivateApiKey(w, r)
 		case "post /webauthn/login":
-			mfa.BeginLogin(w, r)
+			app.BeginLogin(w, r)
 		case "put /webauthn/login":
-			mfa.FinishLogin(w, r)
+			app.FinishLogin(w, r)
 		case "post /webauthn/register":
-			mfa.BeginRegistration(w, r)
+			app.BeginRegistration(w, r)
 		case "put /webauthn/register":
-			mfa.FinishRegistration(w, r)
+			app.FinishRegistration(w, r)
 		case "delete /webauthn/user":
-			mfa.DeleteUser(w, r)
+			app.DeleteUser(w, r)
 		default:
 			return clientError(http.StatusNotFound, fmt.Sprintf("The requested route is not supported: %s", route))
 		}

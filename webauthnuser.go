@@ -248,6 +248,24 @@ func (u *WebauthnUser) Load() error {
 		u.Credentials = creds
 	}
 
+	appid, err := u.ApiKey.DecryptLegacy(u.EncryptedAppId)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt app id: %w", err)
+	}
+	u.AppId = appid
+
+	publicKey, err := u.ApiKey.DecryptLegacy(u.EncryptedPublicKey)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt public key: %w", err)
+	}
+	u.PublicKey = publicKey
+
+	keyHandle, err := u.ApiKey.DecryptLegacy(u.EncryptedKeyHandle)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt key handle: %w", err)
+	}
+	u.KeyHandle = keyHandle
+
 	return nil
 }
 
@@ -322,12 +340,8 @@ func (u *WebauthnUser) FinishRegistration(r *http.Request) (string, error) {
 // CredentialAssertion data to pass back to the client. User session data is saved in the database.
 func (u *WebauthnUser) BeginLogin() (*protocol.CredentialAssertion, error) {
 	extensions := protocol.AuthenticationExtensions{}
-	if u.EncryptedAppId != "" {
-		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
-		if err != nil {
-			return nil, fmt.Errorf("unable to decrypt legacy app id: %w", err)
-		}
-		extensions["appid"] = string(appid)
+	if u.AppId != "" {
+		extensions["appid"] = u.AppId
 	}
 
 	options, sessionData, err := u.WebAuthnClient.BeginLogin(u, webauthn.WithAssertionExtensions(extensions), webauthn.WithUserVerification(protocol.VerificationDiscouraged))
@@ -366,13 +380,8 @@ func (u *WebauthnUser) FinishLogin(r *http.Request) (*webauthn.Credential, error
 
 	// If user has registered U2F creds, check if RPIDHash is actually hash of AppId
 	// if so, replace authenticator data RPIDHash with a hash of the RPID for validation
-	if u.EncryptedAppId != "" {
-		appid, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedAppId))
-		if err != nil {
-			return nil, fmt.Errorf("unable to decrypt legacy app id: %w", err)
-		}
-
-		appIdHash := sha256.Sum256(appid)
+	if u.AppId != "" {
+		appIdHash := sha256.Sum256([]byte(u.AppId))
 		rpIdHash := sha256.Sum256([]byte(u.WebAuthnClient.Config.RPID))
 
 		if fmt.Sprintf("%x", parsedResponse.Response.AuthenticatorData.RPIDHash) == fmt.Sprintf("%x", appIdHash) {
@@ -416,27 +425,13 @@ func (u *WebauthnUser) WebAuthnCredentials() []webauthn.Credential {
 		return u.Credentials
 	}
 
-	credId, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedKeyHandle))
-	if err != nil {
-		log.Printf("unable to decrypt credential id: %s", err)
-		return nil
-	}
-
-	decodedCredId, err := base64.RawURLEncoding.DecodeString(string(credId))
+	decodedCredId, err := base64.RawURLEncoding.DecodeString(u.KeyHandle)
 	if err != nil {
 		log.Println("error decoding credential id:", err)
 		return nil
 	}
 
-	pubKey, err := u.ApiKey.DecryptLegacy([]byte(u.EncryptedPublicKey))
-	if err != nil {
-		log.Printf("unable to decrypt pubic key: %s", err)
-		return nil
-	}
-	// Same as credId
-	// pubKey = bytes.Trim(pubKey, "\x00")
-
-	decodedPubKey, err := base64.RawURLEncoding.DecodeString(string(pubKey))
+	decodedPubKey, err := base64.RawURLEncoding.DecodeString(u.PublicKey)
 	if err != nil {
 		log.Println("error decoding public key:", err)
 		return nil

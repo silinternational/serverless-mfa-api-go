@@ -37,13 +37,8 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 			wantStatus:      http.StatusNotFound,
 			wantErrContains: "no webauthn credentials available",
 			verifyFn: func(results *dynamodb.ScanOutput) {
-				found := false
-				for i := range results.Items {
-					if results.Items[i]["encryptedAppId"].(*types.AttributeValueMemberS).Value == "someEncryptedAppId" {
-						found = true
-					}
-				}
-				ms.True(found)
+				// all three test users should remain
+				ms.Len(results.Items, 3)
 			},
 		},
 		{

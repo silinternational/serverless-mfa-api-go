@@ -204,6 +204,56 @@ func (k *ApiKey) Activate() error {
 	k.ActivatedAt = int(time.Now().UTC().Unix() * 1000)
 	return nil
 }
+
+// ReEncryptWebAuthnUsers loads each WebAuthn record that was encrypted using the old key, re-encrypts it using the new
+// key, and writes the updated data back to the database.
+func (k *ApiKey) ReEncryptWebAuthnUsers(storage *Storage, oldKey ApiKey) error {
+	var users []WebauthnUser
+	err := storage.ScanApiKey(envConfig.WebauthnTable, oldKey.Key, &users)
+	if err != nil {
+		return fmt.Errorf("failed to query %s table for key %s: %w", envConfig.WebauthnTable, oldKey.Key, err)
+	}
+
+	for _, user := range users {
+		user.ApiKey = oldKey
+		err = k.ReEncryptWebAuthnUser(storage, user)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// ReEncryptWebAuthnUser re-encrypts a WebAuthnUser using the new key, and writes the updated data back to the database.
+func (k *ApiKey) ReEncryptWebAuthnUser(storage *Storage, user WebauthnUser) error {
+	oldKey := user.ApiKey
+	err := k.ReEncrypt(oldKey, &user.EncryptedSessionData)
+	if err != nil {
+		return err
+	}
+
+	err = k.ReEncrypt(oldKey, &user.EncryptedCredentials)
+	if err != nil {
+		return err
+	}
+
+	for _, p := range []*string{&user.EncryptedPublicKey, &user.EncryptedKeyHandle, &user.EncryptedAppId} {
+		err = k.ReEncryptLegacy(oldKey, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	user.ApiKey = *k
+	user.ApiKeyValue = k.Key
+
+	err = storage.Store(envConfig.WebauthnTable, &user)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // ReEncrypt decrypts a data block with an old key, then encrypts the resulting plaintext with a new key
 func (k *ApiKey) ReEncrypt(oldKey ApiKey, v *[]byte) error {
 	if v == nil || *v == nil {

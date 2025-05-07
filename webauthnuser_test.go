@@ -111,7 +111,7 @@ func (ms *MfaSuite) Test_User_DeleteCredential() {
 				ApiKey: tt.user.ApiKey,
 				Store:  baseConfigs.Storage,
 			}
-			gotUser.Load()
+			must(gotUser.Load())
 
 			ms.Len(gotUser.Credentials, len(tt.wantCredIDs), "incorrect remaining credential ids")
 

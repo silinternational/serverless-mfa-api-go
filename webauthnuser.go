@@ -194,17 +194,20 @@ func (u *WebauthnUser) DeleteCredential(credIDHash string) (int, error) {
 
 // encryptAndStoreCredentials encrypts the user's credential list and updates the database record
 func (u *WebauthnUser) encryptAndStoreCredentials() error {
-	js, err := json.Marshal(u.Credentials)
-	if err != nil {
-		return err
-	}
+	if len(u.Credentials) == 0 {
+		u.EncryptedCredentials = nil
+	} else {
+		js, err := json.Marshal(u.Credentials)
+		if err != nil {
+			return err
+		}
 
-	enc, err := u.ApiKey.EncryptData(js)
-	if err != nil {
-		return err
+		enc, err := u.ApiKey.EncryptData(js)
+		if err != nil {
+			return err
+		}
+		u.EncryptedCredentials = enc
 	}
-	u.EncryptedCredentials = enc
-
 	return u.Store.Store(envConfig.WebauthnTable, u)
 }
 

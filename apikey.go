@@ -204,6 +204,46 @@ func (k *ApiKey) Activate() error {
 	k.ActivatedAt = int(time.Now().UTC().Unix() * 1000)
 	return nil
 }
+// ReEncrypt decrypts a data block with an old key, then encrypts the resulting plaintext with a new key
+func (k *ApiKey) ReEncrypt(oldKey ApiKey, v *[]byte) error {
+	if v == nil || *v == nil {
+		return nil
+	}
+
+	plaintext, err := oldKey.DecryptData(*v)
+	if err != nil {
+		return fmt.Errorf("failed to decrypt data: %w", err)
+	}
+
+	newCiphertext, err := k.EncryptData(plaintext)
+	if err != nil {
+		return fmt.Errorf("failed to encrypt data: %w", err)
+	}
+
+	*v = newCiphertext
+	return nil
+}
+
+// ReEncryptLegacy decrypts a data block with an old key, then encrypts the resulting plaintext with a new key. This
+// uses a legacy ciphertext format that is stored as Base64 strings.
+func (k *ApiKey) ReEncryptLegacy(oldKey ApiKey, v *string) error {
+	if v == nil || *v == "" {
+		return nil
+	}
+
+	plaintext, err := oldKey.DecryptLegacy(*v)
+	if err != nil {
+		return err
+	}
+
+	newCiphertext, err := k.EncryptLegacy(plaintext)
+	if err != nil {
+		return err
+	}
+
+	*v = string(newCiphertext)
+	return nil
+}
 
 // ActivateApiKey is the handler for the POST /api-key/activate endpoint. It creates the key secret and updates the
 // database record.

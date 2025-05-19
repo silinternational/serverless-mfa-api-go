@@ -381,3 +381,153 @@ func (ms *MfaSuite) TestNewCipherBlock() {
 		})
 	}
 }
+
+func (ms *MfaSuite) TestReEncryptWebAuthnUsers() {
+	awsConfig := testAwsConfig()
+	testEnvConfig(awsConfig)
+	storage, err := NewStorage(awsConfig)
+	must(err)
+
+	baseConfigs := getDBConfig(ms)
+	users := getTestWebauthnUsers(ms, baseConfigs)
+
+	newKey, err := NewApiKey("email@example.com")
+	must(err)
+	must(newKey.Activate())
+	must(ms.app.GetDB().Store(ms.app.GetConfig().ApiKeyTable, newKey))
+
+	err = newKey.ReEncryptWebAuthnUsers(storage, users[0].ApiKey)
+	ms.NoError(err)
+
+	// verify only users[0] is affected because each test user belongs to a different key
+	for i, user := range users {
+		dbUser := user
+		must(dbUser.Load())
+		if i == 0 {
+			ms.NotEqual(user, dbUser)
+		} else {
+			ms.Equal(user, dbUser)
+		}
+	}
+}
+
+func (ms *MfaSuite) TestReEncryptWebAuthnUser() {
+	awsConfig := testAwsConfig()
+	testEnvConfig(awsConfig)
+	storage, err := NewStorage(awsConfig)
+	must(err)
+
+	baseConfigs := getDBConfig(ms)
+	users := getTestWebauthnUsers(ms, baseConfigs)
+
+	tests := []struct {
+		name string
+		user WebauthnUser
+	}{
+		{
+			name: "rotate U2F user",
+			user: users[0],
+		},
+		{
+			name: "rotate WebAuthn user",
+			user: users[1],
+		},
+	}
+	for _, tt := range tests {
+		ms.Run(tt.name, func() {
+			newKey, err := NewApiKey("email@example.com")
+			must(err)
+			must(newKey.Activate())
+			must(ms.app.GetDB().Store(ms.app.GetConfig().ApiKeyTable, newKey))
+			ms.NotEqual(newKey.Secret, tt.user.ApiKey.Secret)
+
+			err = newKey.ReEncryptWebAuthnUser(storage, tt.user)
+			ms.NoError(err)
+
+			dbUser := WebauthnUser{ID: tt.user.ID, ApiKey: newKey, Store: storage}
+			must(dbUser.Load())
+
+			// check U2F data
+			ms.DifferentOrEmptyString(tt.user.EncryptedAppId, dbUser.EncryptedAppId)
+			ms.DifferentOrEmptyString(tt.user.EncryptedKeyHandle, dbUser.EncryptedKeyHandle)
+			ms.DifferentOrEmptyString(tt.user.EncryptedPublicKey, dbUser.EncryptedPublicKey)
+			ms.Equal(tt.user.AppId, dbUser.AppId)
+			ms.Equal(tt.user.KeyHandle, dbUser.KeyHandle)
+			ms.Equal(tt.user.PublicKey, dbUser.PublicKey)
+
+			// check WebAuthn data
+			ms.DifferentOrNilByteSlice(tt.user.EncryptedCredentials, dbUser.EncryptedCredentials)
+			ms.DifferentOrNilByteSlice(tt.user.EncryptedSessionData, dbUser.EncryptedSessionData)
+			ms.Equal(tt.user.Credentials, dbUser.Credentials)
+			ms.Equal(tt.user.SessionData, dbUser.SessionData)
+		})
+	}
+}
+
+func (ms *MfaSuite) DifferentOrEmptyString(a, b string) {
+	if a == "" && b == "" {
+		return
+	}
+	ms.NotEqual(a, b)
+}
+
+func (ms *MfaSuite) DifferentOrNilByteSlice(a, b []byte) {
+	if a == nil && b == nil {
+		return
+	}
+	ms.NotEqual(a, b)
+}
+
+func (ms *MfaSuite) TestApiKeyReEncrypt() {
+	oldKey := ApiKey{}
+	must(oldKey.Activate())
+	newKey := ApiKey{}
+	must(newKey.Activate())
+
+	plaintext := []byte("this is a secret message")
+	ciphertext, err := oldKey.EncryptData(plaintext)
+	ms.NoError(err)
+
+	// keep a copy of the ciphertext before it changes
+	oldCiphertext := ciphertext
+	err = newKey.ReEncrypt(oldKey, &ciphertext)
+	ms.NoError(err)
+
+	// verify it actually changed
+	ms.NotEqual(oldCiphertext, ciphertext)
+	ms.Equal(len(oldCiphertext), len(ciphertext))
+
+	// decrypt and compare with the original plaintext
+	after, err := newKey.DecryptData(ciphertext)
+	ms.NoError(err)
+	ms.Equal(plaintext, after)
+}
+
+func (ms *MfaSuite) TestApiKeyReEncryptLegacy() {
+	oldKey := ApiKey{}
+	must(oldKey.Activate())
+	newKey := ApiKey{}
+	must(newKey.Activate())
+
+	plaintext := "this is a secret message"
+	ciphertext, err := oldKey.EncryptLegacy(plaintext)
+	ms.NoError(err)
+
+	// decrypt and compare with the original plaintext
+	a, err := oldKey.DecryptLegacy(ciphertext)
+	ms.NoError(err)
+	ms.Equal(plaintext, a)
+
+	// convert to string and retain a copy for comparison
+	newCiphertext := ciphertext
+	err = newKey.ReEncryptLegacy(oldKey, &newCiphertext)
+	ms.NoError(err)
+
+	// verify it actually changed
+	ms.False(newCiphertext == ciphertext)
+
+	// decrypt and compare with the original plaintext
+	after, err := newKey.DecryptLegacy(newCiphertext)
+	ms.NoError(err)
+	ms.Equal(plaintext, after)
+}

@@ -74,14 +74,11 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	proxy.AddMethod(jsii.String("ANY"), awsapigateway.NewLambdaIntegration(function,
 		&awsapigateway.LambdaIntegrationOptions{AllowTestInvoke: jsii.Bool(false)}), nil)
 
-	envTag := env
-	if env == "dev" {
-		envTag = "staging"
+	if sprops.Tags != nil {
+		for k, v := range *sprops.Tags {
+			awscdk.Tags_Of(stack).Add(jsii.String(k), v, nil)
+		}
 	}
-	awscdk.Tags_Of(stack).Add(jsii.String("itse_app_env"), jsii.String(envTag), nil)
-	awscdk.Tags_Of(stack).Add(jsii.String("itse_app_name"), jsii.String("mfa-api"), nil)
-	awscdk.Tags_Of(stack).Add(jsii.String("itse_app_customer"), jsii.String("shared"), nil)
-	awscdk.Tags_Of(stack).Add(jsii.String("managed_by"), jsii.String("cdk"), nil)
 
 	return stack
 }
@@ -93,7 +90,7 @@ func main() {
 
 	env := os.Getenv("ENVIRONMENT")
 	if env == "" {
-		env = "cdk"
+		env = "dev"
 	}
 
 	NewCdkStack(app, "twosv-api-"+env, &CdkStackProps{
@@ -103,9 +100,9 @@ func main() {
 			},
 			Tags: &map[string]*string{
 				"managed_by":        jsii.String("cdk"),
-				"itse_app_name":     jsii.String("cloudflare-scanner"),
-				"itse_app_customer": jsii.String("gtis"),
-				"itse_app_env":      jsii.String("production"),
+				"itse_app_name":     jsii.String("twosv-api"),
+				"itse_app_customer": jsii.String("shared"),
+				"itse_app_env":      jsii.String(env),
 			},
 		},
 	})

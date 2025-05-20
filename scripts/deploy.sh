@@ -9,9 +9,6 @@ set -x
 # circumvent Go error message "error obtaining VCS status: exit status 128"
 git config --global --add safe.directory $(pwd)
 
-# Build binaries
-CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./lambda
-
 # Print the Serverless version in the logs
 serverless --version
 

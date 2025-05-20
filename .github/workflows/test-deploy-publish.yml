@@ -66,7 +66,38 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Deploy
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install AWS CDK
+        run: npm install -g aws-cdk
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Build
+        run: CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./lambda
+
+      - name: CDK Deploy
+        if: github.ref_name == 'develop' || github.ref_name == 'main'
+        env:
+          AWS_REGION: ${{ matrix.region }}
+          ENVIRONMENT: ${{ vars.STAGE }}
+          LAMBDA_ROLE: ${{ vars.LAMBDA_ROLE }}
+          API_KEY_TABLE: ${{ vars.API_KEY_TABLE }}
+          TOTP_TABLE: ${{ vars.TOTP_TABLE }}
+          WEBAUTHN_TABLE: ${{ vars.WEBAUTHN_TABLE }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: cd cdk && cdk deploy --require-approval never
+
+      - name: Serverless Deploy
+        if: github.ref_name == 'develop' || github.ref_name == 'main'
         run: |
           docker compose run \
             -e LAMBDA_ROLE=${{ vars.LAMBDA_ROLE }} \

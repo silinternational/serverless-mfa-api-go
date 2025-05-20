@@ -54,3 +54,12 @@ services:
     volumes:
       - .:/src
     command: ["bash"]
+
+  cdk:
+    build: .
+    volumes:
+    - ./:/src
+    user: 1000:1001
+    env_file:
+    - path: local.env
+      required: false

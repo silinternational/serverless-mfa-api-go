@@ -38,7 +38,7 @@ func NewCdkStack(scope constructs.Construct, id string, props *CdkStackProps) aw
 	logGroup := awslogs.NewLogGroup(stack, jsii.String("LogGroup"), &awslogs.LogGroupProps{
 		LogGroupName:  jsii.String("/aws/lambda/" + functionName),
 		Retention:     awslogs.RetentionDays_TWO_MONTHS,
-		RemovalPolicy: awscdk.RemovalPolicy_DESTROY, // Remove logs when stack is deleted
+		RemovalPolicy: awscdk.RemovalPolicy_RETAIN, // Retain logs when stack is deleted
 	})
 
 	role := awsiam.Role_FromRoleArn(stack, jsii.String("Role"), jsii.String(lambdaRoleArn), nil)

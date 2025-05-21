@@ -84,7 +84,7 @@ jobs:
         run: CGO_ENABLED=0 go build -tags lambda.norpc -ldflags="-s -w" -o bootstrap ./lambda
 
       - name: CDK Deploy
-        if: github.ref_name == 'develop' || github.ref_name == 'main'
+        if: github.ref_name == 'develop'
         env:
           AWS_REGION: ${{ matrix.region }}
           ENVIRONMENT: ${{ vars.STAGE }}
@@ -97,7 +97,7 @@ jobs:
         run: cd cdk && cdk deploy --require-approval never
 
       - name: Serverless Deploy
-        if: github.ref_name == 'develop' || github.ref_name == 'main'
+        if: github.ref_name == 'main'
         run: |
           docker compose run \
             -e LAMBDA_ROLE=${{ vars.LAMBDA_ROLE }} \

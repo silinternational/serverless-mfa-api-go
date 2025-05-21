@@ -11,8 +11,10 @@ module "serverless-user" {
   source  = "silinternational/serverless-user/aws"
   version = "~> 0.4.2"
 
-  app_name = "${var.app_name}-${var.app_env}"
-  policy_override = jsonencode({
+  app_name           = "${var.app_name}-${var.app_env}"
+  aws_region_policy  = "*"
+  enable_api_gateway = true
+  extra_policies = [jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
@@ -20,12 +22,21 @@ module "serverless-user" {
         Action = [
           "sts:AssumeRole",
         ]
-        Resource = [
-          "arn:aws:iam::*:role/cdk-*"
+        Resource = "arn:aws:iam::*:role/cdk-*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateTags",
+          "ec2:DeleteTags",
+          "iam:getRolePolicy",
+          "logs:FilterLogEvents",
+          "apigateway:UpdateRestApiPolicy",
         ]
+        Resource = "*"
       }
-    ],
-  })
+    ]
+  })]
 }
 
 // Set up custom domain name for easier fail-over.

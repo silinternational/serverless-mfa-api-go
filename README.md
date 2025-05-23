@@ -7,8 +7,8 @@ would mean loss of all WebAuthn credentials stored.
 
 This application can be run in two ways:
 1. As a standalone server using the builtin webserver available in the `server/` folder
-2. As a AWS Lambda function using the `lambda/` implementation. This implementation can also use the 
-[Serverless Framework](https://serverless.com) to help automate build/deployment. It should also be 
+2. As a AWS Lambda function using the `lambda/` implementation. This implementation can also use 
+[AWS CDK](https://aws.amazon.com/cdk/) to help automate build/deployment. It should also be 
 noted that the `lambda` format depends on some resources already existing in AWS. There is a `lambda/terraform/`
 folder with the Terraform configurations needed to provision them. 
 

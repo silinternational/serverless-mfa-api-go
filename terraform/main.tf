@@ -14,7 +14,29 @@ module "serverless-user" {
   app_name           = "${var.app_name}-${var.app_env}"
   aws_region_policy  = "*"
   enable_api_gateway = true
-  extra_policies     = var.extra_policies
+  extra_policies = [jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sts:AssumeRole",
+        ]
+        Resource = "arn:aws:iam::*:role/cdk-*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateTags",
+          "ec2:DeleteTags",
+          "iam:getRolePolicy",
+          "logs:FilterLogEvents",
+          "apigateway:UpdateRestApiPolicy",
+        ]
+        Resource = "*"
+      }
+    ]
+  })]
 }
 
 // Set up custom domain name for easier fail-over.

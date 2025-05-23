@@ -11,7 +11,7 @@ variable "app_env" {
 
 variable "aws_access_key_id" {
   type        = string
-  description = "Access Key ID for user with permissions to create resources for serverless framework"
+  description = "Access Key ID for user with permissions to create resources for CDK"
 }
 
 variable "aws_account_id" {
@@ -31,34 +31,7 @@ variable "aws_region_secondary" {
 
 variable "aws_secret_access_key" {
   type        = string
-  description = "Secret access Key ID for user with permissions to create resources for serverless framework"
-}
-
-variable "extra_policies" {
-  type        = list(string)
-  description = "Optionally provide additional inline policies to attach to user"
-  default = [
-    <<EOT
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:CreateTags",
-        "ec2:DeleteTags",
-        "iam:getRolePolicy",
-        "logs:FilterLogEvents",
-        "apigateway:UpdateRestApiPolicy"
-      ],
-      "Resource": [
-        "*"
-      ]
-    }
-  ]
-}
-EOT
-  ]
+  description = "Secret access Key ID for user with permissions to create resources for CDK"
 }
 
 variable "api_key_table" {

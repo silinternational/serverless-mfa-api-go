@@ -418,8 +418,10 @@ func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 	jsonResponse(w, nil, http.StatusNoContent)
 }
 
-// RotateApiKey generates a new secret for an existing key. All data in other tables that is encrypted by the key will
-// be re-encrypted using the new secret.
+// RotateApiKey facilitates the rotation of API Keys. All data in webauthn and totp tables that is encrypted by the old
+// key will be re-encrypted using the new key. If the process does not run to completion, this endpoint can be called
+// any number of times to continue the process. A status of 200 does not indicate that all keys were encrypted using the
+// new key. Check the response data to determine if the rotation process is complete.
 func (a *App) RotateApiKey(w http.ResponseWriter, r *http.Request) {
 	requestBody, err := parseRotateKeyRequestBody(r.Body)
 	if err != nil {

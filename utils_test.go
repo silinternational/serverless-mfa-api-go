@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -39,6 +40,7 @@ func testAwsConfig() aws.Config {
 func testEnvConfig(awsConfig aws.Config) EnvConfig {
 	envCfg := EnvConfig{
 		ApiKeyTable:      "ApiKey",
+		TotpTable:        "Totp",
 		WebauthnTable:    "WebAuthn",
 		AwsEndpoint:      os.Getenv("AWS_ENDPOINT"),
 		AwsDefaultRegion: os.Getenv("AWS_DEFAULT_REGION"),
@@ -61,7 +63,7 @@ func initDb(storage *Storage) error {
 	ctx := context.Background()
 
 	// attempt to delete tables in case already exists
-	tables := map[string]string{"WebAuthn": "uuid", "ApiKey": "value"}
+	tables := map[string]string{"Totp": "uuid", "WebAuthn": "uuid", "ApiKey": "value"}
 	for name := range tables {
 		deleteTable := &dynamodb.DeleteTableInput{
 			TableName: aws.String(name),
@@ -92,7 +94,7 @@ func initDb(storage *Storage) error {
 		}
 		_, err = storage.client.CreateTable(ctx, createTable)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to create table %s: %w", table, err)
 		}
 	}
 

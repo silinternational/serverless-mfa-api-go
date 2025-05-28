@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	uuid "github.com/satori/go.uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -333,6 +334,117 @@ func (ms *MfaSuite) TestCreateApiKey() {
 	}
 }
 
+func (ms *MfaSuite) TestAppRotateApiKey() {
+	users := getTestWebauthnUsers(ms, getDBConfig(ms))
+
+	db := ms.app.GetDB()
+	config := ms.app.GetConfig()
+
+	user := users[0]
+	key := user.ApiKey
+	must(db.Store(config.ApiKeyTable, key))
+
+	totp := TOTP{
+		UUID:             uuid.NewV4().String(),
+		ApiKey:           key.Key,
+		EncryptedTotpKey: mustEncryptLegacy(key, "plain text TOTP key"),
+	}
+	must(db.Store(ms.app.GetConfig().TotpTable, totp))
+
+	newKey, err := NewApiKey("email@example.com")
+	must(err)
+	must(newKey.Activate())
+	must(db.Store(config.ApiKeyTable, newKey))
+
+	tests := []struct {
+		name       string
+		body       any
+		wantStatus int
+		wantError  string
+	}{
+		{
+			name: "missing oldKeyId",
+			body: map[string]interface{}{
+				paramNewKeyId:     newKey.Key,
+				paramNewKeySecret: newKey.Secret,
+				paramOldKeySecret: key.Secret,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid request: oldKeyId is required",
+		},
+		{
+			name: "missing oldKeySecret",
+			body: map[string]interface{}{
+				paramNewKeyId:     newKey.Key,
+				paramNewKeySecret: newKey.Secret,
+				paramOldKeyId:     key.Key,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid request: oldKeySecret is required",
+		},
+		{
+			name: "missing newKeyId",
+			body: map[string]interface{}{
+				paramNewKeySecret: newKey.Secret,
+				paramOldKeyId:     key.Key,
+				paramOldKeySecret: key.Secret,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid request: newKeyId is required",
+		},
+		{
+			name: "missing newKeySecret",
+			body: map[string]interface{}{
+				paramNewKeyId:     newKey.Key,
+				paramOldKeyId:     key.Key,
+				paramOldKeySecret: key.Secret,
+			},
+			wantStatus: http.StatusBadRequest,
+			wantError:  "invalid request: newKeySecret is required",
+		},
+		{
+			name: "good",
+			body: map[string]interface{}{
+				paramNewKeyId:     newKey.Key,
+				paramNewKeySecret: newKey.Secret,
+				paramOldKeyId:     user.ApiKey.Key,
+				paramOldKeySecret: key.Secret,
+			},
+			wantStatus: http.StatusOK,
+		},
+	}
+	for _, tt := range tests {
+		ms.Run(tt.name, func() {
+			res := &lambdaResponseWriter{Headers: http.Header{}}
+			req := requestWithUser(tt.body, key)
+			ms.app.RotateApiKey(res, req)
+
+			if tt.wantError != "" {
+				ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("CreateApiKey response: %s", res.Body))
+				var se simpleError
+				ms.decodeBody(res.Body, &se)
+				ms.Equal(tt.wantError, se.Error)
+				return
+			}
+
+			ms.Equal(tt.wantStatus, res.Status, fmt.Sprintf("CreateApiKey response: %s", res.Body))
+
+			var response map[string]int
+			ms.decodeBody(res.Body, &response)
+			ms.Equal(1, response["totpComplete"])
+			ms.Equal(1, response["webauthnComplete"])
+
+			totpFromDB := TOTP{UUID: totp.UUID, ApiKey: newKey.Key}
+			must(db.Load(config.TotpTable, "uuid", totp.UUID, &totpFromDB))
+			ms.Equal(newKey.Key, totpFromDB.ApiKey)
+
+			dbUser := WebauthnUser{ID: user.ID, Store: db, ApiKey: newKey}
+			must(dbUser.Load())
+			ms.Equal(newKey.Key, dbUser.ApiKey.Key)
+		})
+	}
+}
+
 func (ms *MfaSuite) TestNewApiKey() {
 	got, err := NewApiKey(exampleEmail)
 	ms.NoError(err)
@@ -382,6 +494,34 @@ func (ms *MfaSuite) TestNewCipherBlock() {
 	}
 }
 
+func (ms *MfaSuite) TestApiKey_ReEncryptTOTPs() {
+	awsConfig := testAwsConfig()
+	testEnvConfig(awsConfig)
+	storage, err := NewStorage(awsConfig)
+	must(err)
+
+	oldKey, err := NewApiKey("old_key@example.com")
+	must(err)
+	must(oldKey.Activate())
+	must(ms.app.GetDB().Store(ms.app.GetConfig().ApiKeyTable, oldKey))
+
+	newKey, err := NewApiKey("new_key@example.com")
+	must(err)
+	must(newKey.Activate())
+	must(ms.app.GetDB().Store(ms.app.GetConfig().ApiKeyTable, newKey))
+
+	must(storage.Store(ms.app.GetConfig().TotpTable, TOTP{
+		UUID:             uuid.NewV4().String(),
+		ApiKey:           oldKey.Key,
+		EncryptedTotpKey: mustEncryptLegacy(oldKey, "plain text TOTP key"),
+	}))
+
+	complete, incomplete, err := newKey.ReEncryptTOTPs(storage, oldKey)
+	ms.NoError(err)
+	ms.Equal(1, complete)
+	ms.Equal(0, incomplete)
+}
+
 func (ms *MfaSuite) TestReEncryptWebAuthnUsers() {
 	awsConfig := testAwsConfig()
 	testEnvConfig(awsConfig)
@@ -396,8 +536,10 @@ func (ms *MfaSuite) TestReEncryptWebAuthnUsers() {
 	must(newKey.Activate())
 	must(ms.app.GetDB().Store(ms.app.GetConfig().ApiKeyTable, newKey))
 
-	err = newKey.ReEncryptWebAuthnUsers(storage, users[0].ApiKey)
+	complete, incomplete, err := newKey.ReEncryptWebAuthnUsers(storage, users[0].ApiKey)
 	ms.NoError(err)
+	ms.Equal(0, incomplete)
+	ms.Equal(1, complete)
 
 	// verify only users[0] is affected because each test user belongs to a different key
 	for i, user := range users {

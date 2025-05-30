@@ -50,14 +50,17 @@ func getTestWebauthnUsers(ms *MfaSuite, config baseTestConfig) []WebauthnUser {
 		Store:       config.Storage,
 		ActivatedAt: 1,
 	}
+	must(apiKey0.Hash())
 
 	apiKey1 := apiKey0
 	apiKey1.Key = "1134567890123456"
 	apiKey1.Secret = "E186600E-3DBF-4C23-A0DA-9C55D448"
+	must(apiKey1.Hash())
 
 	apiKey2 := apiKey0
 	apiKey2.Key = "1234567890123456"
 	apiKey2.Secret = "E286600E-3DBF-4C23-A0DA-9C55D448"
+	must(apiKey2.Hash())
 
 	testUser0 := WebauthnUser{
 		ID:             apiKey0.Secret,

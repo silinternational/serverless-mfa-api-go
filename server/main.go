@@ -51,6 +51,12 @@ func getRoutes(app *mfa.App) []route {
 			HandlerFunc: app.ActivateApiKey,
 		},
 		{
+			Name:        "RotateApiKey",
+			Method:      "POST",
+			Pattern:     "/api-key/rotate",
+			HandlerFunc: app.RotateApiKey,
+		},
+		{
 			Name:        "CreateApiKey",
 			Method:      "POST",
 			Pattern:     "/api-key",

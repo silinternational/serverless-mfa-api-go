@@ -440,6 +440,90 @@ paths:
                 not-found:
                   value:
                     error: "key not found: item does not exist: 0123456789012345678901234567890123456789"
+  /api-key/rotate:
+    post:
+      operationId: rotateApiKey
+      summary: Rotate API Key
+      description: >
+        All data in webauthn and totp tables that is encrypted by the old key will be re-encrypted using the new key.
+        If the process does not run to completion, this endpoint can be called any number of times to continue the
+        process. A status of 200 does not indicate that all keys were encrypted using the new key. Check the response
+        data to determine if the rotation process is complete.
+      requestBody:
+        description: request body for ApiKeyRotate request
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                oldKeyId:
+                  type: string
+                  description: old API Key ID
+                  required: true
+                  example: 0123456789012345678901234567890123456789
+                oldKeySecret:
+                  type: string
+                  description: old API Key secret
+                  required: true
+                  example: 0123456789012345678901234567890123456789012=
+                newKeyId:
+                  type: string
+                  description: new API Key ID
+                  required: true
+                  example: 0123456789012345678901234567890123456789
+                newKeySecret:
+                  type: string
+                  description: new API Key secret
+                  required: true
+                  example: 0123456789012345678901234567890123456789012=
+      responses:
+        200:
+          description: New API secret created and data re-encrypted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totpComplete:
+                    type: integer
+                    description: the number of TOTP codes that were encrypted with the new key
+                    required: true
+                  totpIncomplete:
+                    type: integer
+                    description: the number of TOTP codes that have not yet been encrypted with the new key
+                    required: true
+                  webauthnComplete:
+                    type: integer
+                    description: the number of Webauthn passkeys that were encrypted with the new key
+                    required: true
+                  webauthnIncomplete:
+                    type: integer
+                    description: the number of Webauthn passkeys that have not yet been encrypted with the new key
+                    required: true
+        400:
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                invalid-input:
+                  value:
+                    error: "invalid request: invalid character ',' looking for beginning of value"
+                api-key-required:
+                  value:
+                    error: "apiKeyValue is required"
+        404:
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SimpleError"
+              examples:
+                not-found:
+                  value:
+                    error: "key not found: item does not exist: 0123456789012345678901234567890123456789"
   /webauthn/register:
     post:
       summary: Begin Registration

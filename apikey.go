@@ -20,6 +20,14 @@ import (
 // ApiKeyTablePK is the primary key in the ApiKey DynamoDB table
 const ApiKeyTablePK = "value"
 
+// key rotation request parameters
+const (
+	paramNewKeyId     = "newKeyId"
+	paramNewKeySecret = "newKeySecret"
+	paramOldKeyId     = "oldKeyId"
+	paramOldKeySecret = "oldKeySecret"
+)
+
 // ApiKey holds API key data from DynamoDB
 type ApiKey struct {
 	Key          string   `dynamodbav:"value" json:"value"`
@@ -205,23 +213,59 @@ func (k *ApiKey) Activate() error {
 	return nil
 }
 
-// ReEncryptWebAuthnUsers loads each WebAuthn record that was encrypted using the old key, re-encrypts it using the new
+// ReEncryptTOTPs loads each TOTP record that was encrypted using the old key, re-encrypts it using the new
 // key, and writes the updated data back to the database.
-func (k *ApiKey) ReEncryptWebAuthnUsers(storage *Storage, oldKey ApiKey) error {
-	var users []WebauthnUser
-	err := storage.ScanApiKey(envConfig.WebauthnTable, oldKey.Key, &users)
+func (k *ApiKey) ReEncryptTOTPs(storage *Storage, oldKey ApiKey) (complete, incomplete int, err error) {
+	var records []TOTP
+	err = storage.ScanApiKey(envConfig.TotpTable, oldKey.Key, &records)
 	if err != nil {
-		return fmt.Errorf("failed to query %s table for key %s: %w", envConfig.WebauthnTable, oldKey.Key, err)
+		err = fmt.Errorf("failed to query %s table for key %s: %w", envConfig.TotpTable, oldKey.Key, err)
+		return
 	}
 
+	incomplete = len(records)
+	for _, r := range records {
+		err = k.ReEncryptLegacy(oldKey, &r.EncryptedTotpKey)
+		if err != nil {
+			err = fmt.Errorf("failed to re-encrypt TOTP %v: %w", r.UUID, err)
+			return
+		}
+
+		r.ApiKey = k.Key
+
+		err = storage.Store(envConfig.TotpTable, &r)
+		if err != nil {
+			err = fmt.Errorf("failed to store TOTP %v: %w", r.UUID, err)
+			return
+		}
+		complete++
+		incomplete--
+	}
+	return
+}
+
+// ReEncryptWebAuthnUsers loads each WebAuthn record that was encrypted using the old key, re-encrypts it using the new
+// key, and writes the updated data back to the database.
+func (k *ApiKey) ReEncryptWebAuthnUsers(storage *Storage, oldKey ApiKey) (complete, incomplete int, err error) {
+	var users []WebauthnUser
+	err = storage.ScanApiKey(envConfig.WebauthnTable, oldKey.Key, &users)
+	if err != nil {
+		err = fmt.Errorf("failed to query %s table for key %s: %w", envConfig.WebauthnTable, oldKey.Key, err)
+		return
+	}
+
+	incomplete = len(users)
 	for _, user := range users {
 		user.ApiKey = oldKey
 		err = k.ReEncryptWebAuthnUser(storage, user)
 		if err != nil {
-			return err
+			err = fmt.Errorf("failed to re-encrypt Webauthn %v: %w", user.ID, err)
+			return
 		}
+		complete++
+		incomplete--
 	}
-	return nil
+	return
 }
 
 // ReEncryptWebAuthnUser re-encrypts a WebAuthnUser using the new key, and writes the updated data back to the database.
@@ -283,15 +327,15 @@ func (k *ApiKey) ReEncryptLegacy(oldKey ApiKey, v *string) error {
 
 	plaintext, err := oldKey.DecryptLegacy(*v)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to decrypt data: %w", err)
 	}
 
 	newCiphertext, err := k.EncryptLegacy(plaintext)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to encrypt data: %w", err)
 	}
 
-	*v = string(newCiphertext)
+	*v = newCiphertext
 	return nil
 }
 
@@ -305,7 +349,7 @@ func (a *App) ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("invalid request: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -322,19 +366,19 @@ func (a *App) ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 	newKey := ApiKey{Key: requestBody.ApiKeyValue, Store: a.db}
 	err = newKey.Load()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("key not found: %s", err), http.StatusNotFound)
+		jsonResponse(w, fmt.Errorf("key not found: %w", err), http.StatusNotFound)
 		return
 	}
 
 	err = newKey.Activate()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to activate key: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("failed to activate key: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	err = newKey.Save()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to save key: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to save key: %w", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -349,7 +393,7 @@ func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("invalid request: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -360,18 +404,95 @@ func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	key, err := NewApiKey(requestBody.Email)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to create a random key: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to create a random key: %w", err), http.StatusInternalServerError)
 		return
 	}
 
 	key.Store = a.db
 	err = key.Save()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to save key: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to save key: %w", err), http.StatusInternalServerError)
 		return
 	}
 
 	jsonResponse(w, nil, http.StatusNoContent)
+}
+
+// RotateApiKey facilitates the rotation of API Keys. All data in webauthn and totp tables that is encrypted by the old
+// key will be re-encrypted using the new key. If the process does not run to completion, this endpoint can be called
+// any number of times to continue the process. A status of 200 does not indicate that all keys were encrypted using the
+// new key. Check the response data to determine if the rotation process is complete.
+func (a *App) RotateApiKey(w http.ResponseWriter, r *http.Request) {
+	requestBody, err := parseRotateKeyRequestBody(r.Body)
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("invalid request: %w", err), http.StatusBadRequest)
+		return
+	}
+
+	oldKey := ApiKey{Key: requestBody[paramOldKeyId], Store: a.GetDB()}
+	err = oldKey.loadAndCheck(requestBody[paramOldKeySecret])
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("old key is not valid: %w", err), http.StatusNotFound)
+		return
+	}
+
+	newKey := ApiKey{Key: requestBody[paramNewKeyId], Store: a.GetDB()}
+	err = newKey.loadAndCheck(requestBody[paramNewKeySecret])
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("new key is not valid: %w", err), http.StatusNotFound)
+		return
+	}
+
+	totpComplete, totpIncomplete, err := newKey.ReEncryptTOTPs(a.GetDB(), oldKey)
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("failed to re-encrypt TOTP data: %w", err), http.StatusInternalServerError)
+		return
+	}
+
+	webauthnComplete, webauthnIncomplete, err := newKey.ReEncryptWebAuthnUsers(a.GetDB(), oldKey)
+	if err != nil {
+		jsonResponse(w, fmt.Errorf("failed to re-encrypt WebAuthn data: %w", err), http.StatusInternalServerError)
+		return
+	}
+
+	responseBody := map[string]int{
+		"totpComplete":       totpComplete,
+		"totpIncomplete":     totpIncomplete,
+		"webauthnComplete":   webauthnComplete,
+		"webauthnIncomplete": webauthnIncomplete,
+	}
+
+	jsonResponse(w, responseBody, http.StatusOK)
+}
+
+func parseRotateKeyRequestBody(body io.Reader) (map[string]string, error) {
+	var requestBody map[string]string
+	err := json.NewDecoder(body).Decode(&requestBody)
+	if err != nil {
+		return nil, fmt.Errorf("invalid request in RotateApiKey: %w", err)
+	}
+
+	fields := []string{paramNewKeyId, paramNewKeySecret, paramOldKeyId, paramOldKeySecret}
+	for _, field := range fields {
+		if _, ok := requestBody[field]; !ok {
+			return nil, fmt.Errorf("%s is required", field)
+		}
+	}
+	return requestBody, nil
+}
+
+func (k *ApiKey) loadAndCheck(secret string) error {
+	err := k.Load()
+	if err != nil {
+		return fmt.Errorf("failed to load key: %w", err)
+	}
+
+	err = k.IsCorrect(secret)
+	if err != nil {
+		return fmt.Errorf("key is not valid: %w", err)
+	}
+	k.Secret = secret
+	return nil
 }
 
 // NewApiKey creates a new key with a random value
@@ -404,4 +525,9 @@ func newCipherBlock(key string) (cipher.Block, error) {
 		return nil, fmt.Errorf("failed to create new cipher: %w", err)
 	}
 	return block, nil
+}
+
+// debugString is used by the debugger to show useful ApiKey information in watched variables
+func (k *ApiKey) debugString() string {
+	return fmt.Sprintf("key: %s, secret: %s", k.Key, k.Secret)
 }

@@ -349,7 +349,7 @@ func (a *App) ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("invalid request: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -366,19 +366,19 @@ func (a *App) ActivateApiKey(w http.ResponseWriter, r *http.Request) {
 	newKey := ApiKey{Key: requestBody.ApiKeyValue, Store: a.db}
 	err = newKey.Load()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("key not found: %s", err), http.StatusNotFound)
+		jsonResponse(w, fmt.Errorf("key not found: %w", err), http.StatusNotFound)
 		return
 	}
 
 	err = newKey.Activate()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to activate key: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("failed to activate key: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	err = newKey.Save()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to save key: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to save key: %w", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -393,7 +393,7 @@ func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestBody)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("invalid request: %w", err), http.StatusBadRequest)
 		return
 	}
 
@@ -404,14 +404,14 @@ func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 
 	key, err := NewApiKey(requestBody.Email)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to create a random key: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to create a random key: %w", err), http.StatusInternalServerError)
 		return
 	}
 
 	key.Store = a.db
 	err = key.Save()
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to save key: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to save key: %w", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -425,33 +425,33 @@ func (a *App) CreateApiKey(w http.ResponseWriter, r *http.Request) {
 func (a *App) RotateApiKey(w http.ResponseWriter, r *http.Request) {
 	requestBody, err := parseRotateKeyRequestBody(r.Body)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("invalid request: %s", err), http.StatusBadRequest)
+		jsonResponse(w, fmt.Errorf("invalid request: %w", err), http.StatusBadRequest)
 		return
 	}
 
 	oldKey := ApiKey{Key: requestBody[paramOldKeyId], Store: a.GetDB()}
 	err = oldKey.loadAndCheck(requestBody[paramOldKeySecret])
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("old key is not valid: %s", err), http.StatusNotFound)
+		jsonResponse(w, fmt.Errorf("old key is not valid: %w", err), http.StatusNotFound)
 		return
 	}
 
 	newKey := ApiKey{Key: requestBody[paramNewKeyId], Store: a.GetDB()}
 	err = newKey.loadAndCheck(requestBody[paramNewKeySecret])
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("new key is not valid: %s", err), http.StatusNotFound)
+		jsonResponse(w, fmt.Errorf("new key is not valid: %w", err), http.StatusNotFound)
 		return
 	}
 
 	totpComplete, totpIncomplete, err := newKey.ReEncryptTOTPs(a.GetDB(), oldKey)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to re-encrypt TOTP data: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to re-encrypt TOTP data: %w", err), http.StatusInternalServerError)
 		return
 	}
 
 	webauthnComplete, webauthnIncomplete, err := newKey.ReEncryptWebAuthnUsers(a.GetDB(), oldKey)
 	if err != nil {
-		jsonResponse(w, fmt.Errorf("failed to re-encrypt WebAuthn data: %s", err), http.StatusInternalServerError)
+		jsonResponse(w, fmt.Errorf("failed to re-encrypt WebAuthn data: %w", err), http.StatusInternalServerError)
 		return
 	}
 
@@ -469,7 +469,7 @@ func parseRotateKeyRequestBody(body io.Reader) (map[string]string, error) {
 	var requestBody map[string]string
 	err := json.NewDecoder(body).Decode(&requestBody)
 	if err != nil {
-		return nil, fmt.Errorf("invalid request in RotateApiKey: %s", err)
+		return nil, fmt.Errorf("invalid request in RotateApiKey: %w", err)
 	}
 
 	fields := []string{paramNewKeyId, paramNewKeySecret, paramOldKeyId, paramOldKeySecret}
@@ -484,12 +484,12 @@ func parseRotateKeyRequestBody(body io.Reader) (map[string]string, error) {
 func (k *ApiKey) loadAndCheck(secret string) error {
 	err := k.Load()
 	if err != nil {
-		return fmt.Errorf("failed to load key: %s", err)
+		return fmt.Errorf("failed to load key: %w", err)
 	}
 
 	err = k.IsCorrect(secret)
 	if err != nil {
-		return fmt.Errorf("key is not valid: %s", err)
+		return fmt.Errorf("key is not valid: %w", err)
 	}
 	k.Secret = secret
 	return nil

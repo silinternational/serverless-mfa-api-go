@@ -1,6 +1,6 @@
 FROM node:22
 
-ENV GO_VERSION=1.24.2
+ENV GO_VERSION=1.24.4
 
 ADD https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip .
 ADD https://go.dev/dl/go${GO_VERSION}.linux-amd64.tar.gz .
@@ -23,7 +23,7 @@ EOF
 WORKDIR /src
 
 RUN curl -sSfL --proto "=https" https://raw.githubusercontent.com/cosmtrek/air/master/install.sh | \
-    sh -s -- -b $(go env GOPATH)/bin
+  sh -s -- -b $(go env GOPATH)/bin
 
 COPY ./ .
 RUN go get ./...

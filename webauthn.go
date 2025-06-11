@@ -2,6 +2,7 @@ package mfa
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -234,19 +235,19 @@ func getWebauthnMetaFromRequest(r *http.Request) (WebauthnMeta, error) {
 	// check that required fields are provided
 	if meta.RPDisplayName == "" {
 		msg := "missing required header: x-mfa-RPDisplayName"
-		return WebauthnMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, errors.New(msg)
 	}
 	if meta.RPID == "" {
 		msg := "missing required header: x-mfa-RPID"
-		return WebauthnMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, errors.New(msg)
 	}
 	if meta.Username == "" {
 		msg := "missing required header: x-mfa-Username"
-		return WebauthnMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, errors.New(msg)
 	}
 	if meta.UserDisplayName == "" {
 		msg := "missing required header: x-mfa-UserDisplayName"
-		return WebauthnMeta{}, fmt.Errorf(msg)
+		return WebauthnMeta{}, errors.New(msg)
 	}
 
 	return meta, nil
